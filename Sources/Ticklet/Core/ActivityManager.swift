@@ -21,7 +21,7 @@ public final class ActivityManager {
         tracker.onEntryFinalized = { [weak self] entry in
             // Ensure we invoke the handler on the MainActor since ActivityManager is @MainActor
             Task { @MainActor in
-                await self?.handleFinalized(entry)
+                self?.handleFinalized(entry)
             }
         }
     }

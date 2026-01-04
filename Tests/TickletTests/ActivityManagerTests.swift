@@ -20,6 +20,7 @@ final class MockLogger: LogWriter {
     }
 }
 
+@MainActor
 final class ActivityManagerTests: XCTestCase {
     func testManagerWritesOnFinalized() {
         var now = Date()

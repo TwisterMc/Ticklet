@@ -13,7 +13,7 @@ final class TickletTests: XCTestCase {
 
     func testActivityEntryDuration() {
         let start = Date()
-        var e = ActivityEntry(appName: "X", windowTitle: "Y", startTime: start, endTime: start.addingTimeInterval(123))
+        let e = ActivityEntry(appName: "X", windowTitle: "Y", startTime: start, endTime: start.addingTimeInterval(123))
         XCTAssertEqual(e.durationSeconds, 123)
     }
 }
