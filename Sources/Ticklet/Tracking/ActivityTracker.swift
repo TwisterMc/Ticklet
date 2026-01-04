@@ -82,6 +82,13 @@ public final class ActivityTracker {
     public func observe(app: String, windowTitle: String, at time: Date) {
         lastUserActivity = time
 
+        // If we don't have a current entry yet, start one immediately
+        if currentEntry == nil {
+            currentEntry = ActivityEntry(appName: app, windowTitle: windowTitle, startTime: time)
+            pendingObservation = nil
+            return
+        }
+
         // If currently idle, and we get activity, finalize the idle entry and start a new one
         if let cur = currentEntry, cur.appName == "[IDLE]" {
             // finalize idle entry

@@ -23,7 +23,7 @@ final class MockLogger: LogWriter {
 @MainActor
 final class ActivityManagerTests: XCTestCase {
     func testManagerWritesOnFinalized() {
-        var now = Date()
+        let now = Date()
         let tracker = ActivityTracker(now: { now })
         let mock = MockLogger()
         let manager = ActivityManager(logger: mock, tracker: tracker, now: { now })
