@@ -46,14 +46,55 @@ jobs:
           EXEC=$(find .build-${{ matrix.arch }} -type f -name Ticklet -path "*release*" -print -quit)
           if [ -z "$EXEC" ]; then echo "Executable not found"; exit 1; fi
           mkdir -p ./artifacts
-          OUT_APP=./artifacts/Ticklet-${{ matrix.arch }}.app
-          ./scripts/make_app_bundle.sh "$EXEC" "$OUT_APP" com.thomas.Ticklet
+          # Create an arch-specific temp app bundle
+          TMP_APP=./artifacts/Ticklet-${{ matrix.arch }}.app
+          ./scripts/make_app_bundle.sh "$EXEC" "$TMP_APP" com.thomas.Ticklet
+          # Normalize the .app name inside a staging dir so zips always contain Ticklet.app
+          STAGING=./artifacts/staging-${{ matrix.arch }}
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          cp -R "$TMP_APP" "$STAGING/Ticklet.app"
+          # Normalize the staging copy to remove lingering xattrs/flags that can cause Finder to skip items
+          echo "Normalizing staged Ticklet.app: removing xattrs and clearing flags"
+          if command -v xattr >/dev/null 2>&1; then
+            xattr -cr "$STAGING/Ticklet.app" || true
+            xattr -dr com.apple.provenance "$STAGING/Ticklet.app" || true
+          fi
+          if command -v chflags >/dev/null 2>&1; then
+            chflags -R nouchg "$STAGING/Ticklet.app" || true
+          fi
+          chmod -R u+rwX "$STAGING/Ticklet.app" || true
+          # Verify the staged zip can be copied (simulate an install). This helps catch Finder-skipped items early.
+          echo "Running packaging verification (simulate install)"
+          VERIFY_TMP=$(mktemp -d)
+          ditto -c -k --sequesterRsrc --keepParent "$STAGING/Ticklet.app" "$VERIFY_TMP/test.zip"
+          mkdir -p "$VERIFY_TMP/unpack"
+          unzip -qq -d "$VERIFY_TMP/unpack" "$VERIFY_TMP/test.zip"
+          mkdir -p "$VERIFY_TMP/install"
+          set +e
+          cp -R "$VERIFY_TMP/unpack/Ticklet.app" "$VERIFY_TMP/install/" 2>"$VERIFY_TMP/cp.err"
+          CP_EXIT=$?
+          set -e
+          if [ $CP_EXIT -ne 0 ]; then
+            echo "[ERROR] Packaging verification failed on arch ${{ matrix.arch }}. See $VERIFY_TMP for diagnostics."
+            ls -laO "$VERIFY_TMP/unpack/Ticklet.app" || true
+            xattr -lr "$VERIFY_TMP/unpack/Ticklet.app" || true
+            sed -n '1,200p' "$VERIFY_TMP/cp.err" || true
+            exit 1
+          else
+            echo "Packaging verification succeeded for arch ${{ matrix.arch }}"
+            rm -rf "$VERIFY_TMP"
+          fi
 
       - name: Zip .app
         if: steps.check.outputs.skipping == 'false'
         run: |
           mkdir -p artifacts
-          ditto -c -k --sequesterRsrc --keepParent ./artifacts/Ticklet-${{ matrix.arch }}.app ./artifacts/Ticklet-${{ matrix.arch }}.zip
+          # Zip the normalized Ticklet.app (inside staging) into an arch-specific zip
+          ditto -c -k --sequesterRsrc --keepParent ./artifacts/staging-${{ matrix.arch }}/Ticklet.app ./artifacts/Ticklet-${{ matrix.arch }}.zip
+          # Cleanup staging and temp app
+          rm -rf ./artifacts/staging-${{ matrix.arch }}
+          rm -rf ./artifacts/Ticklet-${{ matrix.arch }}.app
 
       - name: Upload artifacts
         if: steps.check.outputs.skipping == 'false'

@@ -4,7 +4,7 @@ This document contains developer-oriented instructions for building, testing, pa
 
 ## Quick start
 
-- Requires: Swift 6.0+, macOS 15.0+ (Big Sur+ compatibility not guaranteed).
+- Requires: Swift 6.0+, macOS 15.0+.
 - Clone the repo and build:
 
   - Build (debug):
@@ -40,25 +40,54 @@ Tests cover CSV logging behavior (reads, writes, append semantics) and core mana
   ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
   ```
 
-- Example: locally building an Intel release on an Intel Mac:
+- Example: locally building an Intel release on an Intel Mac (produce normalized Ticklet.app inside an arch-specific zip):
 
   ```bash
   swift build -c release --build-path .build-x86
   ./scripts/make_app_bundle.sh .build-x86/release/Ticklet ./artifacts/Ticklet-x86_64.app com.thomas.Ticklet
-  ditto -c -k --sequesterRsrc --keepParent ./artifacts/Ticklet-x86_64.app ./artifacts/Ticklet-x86_64.zip
+  # Normalize the .app (remove extended attributes, clear immutable flags, and set permissions)
+  xattr -cr ./artifacts/Ticklet-x86_64.app || true
+  # Remove any lingering com.apple.provenance xattr which can persist and trigger Finder errors
+  xattr -dr com.apple.provenance ./artifacts/Ticklet-x86_64.app || true
+  chflags -R nouchg ./artifacts/Ticklet-x86_64.app || true
+  chmod -R u+rwX ./artifacts/Ticklet-x86_64.app
+  # (Optional verification) Check flags and attributes if Finder still complains:
+  # ls -laO ./artifacts/Ticklet-x86_64.app
+  # xattr -lr ./artifacts/Ticklet-x86_64.app
+  # Normalize the app folder name inside a staging dir so zips always contain Ticklet.app
+  mkdir -p ./artifacts/staging-x86_64
+  cp -R ./artifacts/Ticklet-x86_64.app ./artifacts/staging-x86_64/Ticklet.app
+  ditto -c -k --sequesterRsrc --keepParent ./artifacts/staging-x86_64/Ticklet.app ./artifacts/Ticklet-x86_64.zip
+  rm -rf ./artifacts/staging-x86_64
   ```
 
 - Install to /Applications (for testing):
 
   ```bash
-  sudo cp -R ./artifacts/Ticklet-x86_64.app /Applications/
-  xattr -d com.apple.quarantine /Applications/Ticklet-x86_64.app || true
-  codesign --force --deep --sign - /Applications/Ticklet-x86_64.app
+  sudo cp -R ./artifacts/Ticklet.app /Applications/
+  xattr -d com.apple.quarantine /Applications/Ticklet.app || true
+  codesign --force --deep --sign - /Applications/Ticklet.app
+  ```
+
+- If Finder reports "some items had to be skipped" when moving the app, try these diagnostic and remediation steps in Terminal:
+
+  ```bash
+  # Inspect flags and extended attributes
+  ls -laO ./artifacts/Ticklet-x86_64.app
+  xattr -lr ./artifacts/Ticklet-x86_64.app
+
+  # Try removing known attributes and clearing flags
+  sudo cp -R ./artifacts/Ticklet.app /Applications/ || true
+  sudo xattr -d com.apple.quarantine /Applications/Ticklet.app || true
+  sudo xattr -dr com.apple.provenance /Applications/Ticklet.app || true
+  sudo chflags -R nouchg /Applications/Ticklet.app || true
+  sudo chmod -R u+rwX /Applications/Ticklet.app || true
   ```
 
 Notes:
 
 - The script will add `CFBundleIconFile` to the Info.plist if an `.icns` is present in `Assets/`.
+- The packaging script now normalizes the resulting `.app` before finishing: it removes extended attributes (like `com.apple.quarantine`), clears immutable flags, and sets reasonable permissions so users can move the app into `/Applications` without Finder skipping items.
 - Don't commit binary icons or build artifacts to the repo; use `artifacts/` for temporary local zips (and keep it in `.gitignore`).
 - We provide a GitHub Actions workflow `/.github/workflows/release.yml` that can build per-arch artifacts and create a draft GitHub Release (it builds per-arch when appropriate runners are available and uploads per-arch zips as artifacts).
 - To provide both Intel and Apple Silicon binaries, build on a machine of the respective architecture (or use CI runners for each arch). You can then create a universal binary with `lipo` by combining two single-arch binaries, if desired.

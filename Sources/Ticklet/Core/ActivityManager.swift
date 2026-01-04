@@ -58,7 +58,25 @@ public final class ActivityManager {
     public func flushAll() {
         for (key, list) in entriesByDate {
             guard let date = fileDateFormatter.date(from: key) else { continue }
-            try? logger.write(entries: list, for: date)
+
+            // Merge with on-disk entries (if any) to avoid overwriting existing data
+            var merged = list
+            if let existing = try? logger.readEntries(for: date) {
+                merged.append(contentsOf: existing)
+            }
+
+            // Deduplicate by start/end/app/title
+            var seen = Set<String>()
+            var deduped: [ActivityEntry] = []
+            for e in merged.sorted(by: { $0.startTime < $1.startTime }) {
+                let key = "\(e.startTime.timeIntervalSince1970)-\(e.endTime?.timeIntervalSince1970 ?? 0)-\(e.appName)-\(e.windowTitle)"
+                if !seen.contains(key) {
+                    seen.insert(key)
+                    deduped.append(e)
+                }
+            }
+
+            try? logger.write(entries: deduped, for: date)
         }
     }
 }
