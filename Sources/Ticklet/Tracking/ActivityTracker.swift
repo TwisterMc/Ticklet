@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 
+@MainActor
 public final class ActivityTracker {
     public var pollInterval: TimeInterval = 1.0
     public var debounceWindow: TimeInterval = 3.0
@@ -60,7 +61,10 @@ public final class ActivityTracker {
     private func scheduleTimer() {
         timer?.invalidate()
         let t = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
-            self?.tick()
+            // Ensure tick runs on the main actor
+            Task { @MainActor in
+                self?.tick()
+            }
         }
         RunLoop.main.add(t, forMode: .common)
         timer = t

@@ -112,10 +112,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // observe finalized entries to update status indicator
             NotificationCenter.default.addObserver(forName: .tickletEntryFinalized, object: nil, queue: .main) { [weak self] n in
                 guard let entry = n.object as? ActivityEntry else { return }
-                if entry.appName == "[IDLE]" {
-                    self?.updateStatusIcon(isIdle: true)
-                } else {
-                    self?.updateStatusIcon(isIdle: false)
+                // Capture the app name (a Sendable type) so we don't send the whole entry into the MainActor task
+                let appName = entry.appName
+                Task { @MainActor in
+                    if appName == "[IDLE]" {
+                        self?.updateStatusIcon(isIdle: true)
+                    } else {
+                        self?.updateStatusIcon(isIdle: false)
+                    }
                 }
             }
 
@@ -271,16 +275,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self = self else { timer.invalidate(); return }
             if AXIsProcessTrusted() {
                 timer.invalidate()
-                self.accessibilityPollTimer = nil
-                self.updateAccessibilityMenuItem()
+                // Ensure mutation and UI updates happen on the MainActor
+                Task { @MainActor in
+                    self.accessibilityPollTimer = nil
+                    self.updateAccessibilityMenuItem()
+                }
             }
         }
 
         // Also schedule a final update in case polling didn't catch it (timeout after 15s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) { [weak self] in
-            self?.accessibilityPollTimer?.invalidate()
-            self?.accessibilityPollTimer = nil
-            self?.updateAccessibilityMenuItem()
+            Task { @MainActor in
+                self?.accessibilityPollTimer?.invalidate()
+                self?.accessibilityPollTimer = nil
+                self?.updateAccessibilityMenuItem()
+            }
         }
     }
 

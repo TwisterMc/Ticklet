@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public final class ActivityManager {
     private let logger: LogWriter
     private let tracker: ActivityTracker

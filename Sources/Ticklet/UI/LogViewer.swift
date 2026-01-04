@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 public final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     private let tableView = NSTableView()
@@ -11,6 +12,9 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
     private var entries: [ActivityEntry] = []
     private let logger: CSVLogger
     private let frameDefaultsKey = "LogViewerWindowFrame"
+
+    // Cache app icons by app name for performance
+    private var appIconCache: [String: NSImage] = [:]
 
 
     // History for back/forward navigation (stores startOfDay dates)
@@ -149,9 +153,10 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         col2.sortDescriptorPrototype = NSSortDescriptor(key: "durationSeconds", ascending: false)
         tableView.addTableColumn(col2)
 
+        // App column includes an icon and the app name
         let col3 = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("app"))
         col3.title = "App"
-        col3.width = 200
+        col3.width = 240
         col3.sortDescriptorPrototype = NSSortDescriptor(key: "appName", ascending: true)
         tableView.addTableColumn(col3)
 
@@ -235,6 +240,42 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         }
         // Use a view-based cell for more reliable styling across appearances
         let cellView = NSTableCellView()
+
+        if id == "app" {
+            // Create an image view for the app icon and a text field for the app name
+            let iv = NSImageView()
+            iv.translatesAutoresizingMaskIntoConstraints = false
+            iv.imageScaling = .scaleProportionallyDown
+            iv.image = appIcon(for: text)
+            iv.setContentHuggingPriority(.required, for: .horizontal)
+            iv.setContentCompressionResistancePriority(.required, for: .horizontal)
+            iv.wantsLayer = false
+            cellView.addSubview(iv)
+
+            let tf = NSTextField(labelWithString: text)
+            tf.translatesAutoresizingMaskIntoConstraints = false
+            tf.textColor = .labelColor
+            tf.isBezeled = false
+            tf.drawsBackground = false
+            tf.lineBreakMode = .byTruncatingTail
+            cellView.addSubview(tf)
+
+            NSLayoutConstraint.activate([
+                iv.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 6),
+                iv.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                iv.widthAnchor.constraint(equalToConstant: 16),
+                iv.heightAnchor.constraint(equalToConstant: 16),
+
+                tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 6),
+                tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
+                tf.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 1),
+                tf.bottomAnchor.constraint(equalTo: cellView.bottomAnchor, constant: -1),
+            ])
+
+            cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
+            return cellView
+        }
+
         let tf = NSTextField(labelWithString: text)
         tf.translatesAutoresizingMaskIntoConstraints = false
         tf.textColor = .labelColor
@@ -250,6 +291,30 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         ])
         cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
         return cellView
+    }
+
+    // MARK: - App icon helpers
+
+    private func appIcon(for appName: String) -> NSImage {
+        if let cached = appIconCache[appName] { return cached }
+        if let running = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == appName }), let icon = running.icon {
+            appIconCache[appName] = icon
+            return icon
+        }
+        // Use the generic application icon as a fallback
+        if let generic = NSImage(named: NSImage.applicationIconName) {
+            appIconCache[appName] = generic
+            return generic
+        }
+        if #available(macOS 12.0, *) {
+            let generic = NSWorkspace.shared.icon(for: UTType.application)
+            appIconCache[appName] = generic
+            return generic
+        } else {
+            let generic = NSWorkspace.shared.icon(forFileType: "app")
+            appIconCache[appName] = generic
+            return generic
+        }
     }
 
     // MARK: - Navigation
