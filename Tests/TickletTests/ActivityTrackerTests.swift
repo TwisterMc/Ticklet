@@ -1,6 +1,7 @@
 import XCTest
 @testable import Ticklet
 
+@MainActor
 final class ActivityTrackerTests: XCTestCase {
     func testDebouncePreventsNoise() {
         var now = Date()
