@@ -35,21 +35,48 @@ Tests cover CSV logging behavior (reads, writes, append semantics) and core mana
 - Create an `.app` wrapper (helper script included):
 
   ```bash
-  ./scripts/make_app_bundle.sh --binary .build/release/Ticklet --out ./Ticklet.app
+  # build for the current host arch (x86_64 or arm64)
+  swift build -c release --build-path .build-<arch>
+  ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+  ```
+
+- Example: locally building an Intel release on an Intel Mac:
+
+  ```bash
+  swift build -c release --build-path .build-x86
+  ./scripts/make_app_bundle.sh .build-x86/release/Ticklet ./artifacts/Ticklet-x86_64.app com.thomas.Ticklet
+  ditto -c -k --sequesterRsrc --keepParent ./artifacts/Ticklet-x86_64.app ./artifacts/Ticklet-x86_64.zip
   ```
 
 - Install to /Applications (for testing):
 
   ```bash
-  sudo cp -R ./Ticklet.app /Applications/
-  xattr -d com.apple.quarantine /Applications/Ticklet.app || true
-  codesign --force --deep --sign - /Applications/Ticklet.app
+  sudo cp -R ./artifacts/Ticklet-x86_64.app /Applications/
+  xattr -d com.apple.quarantine /Applications/Ticklet-x86_64.app || true
+  codesign --force --deep --sign - /Applications/Ticklet-x86_64.app
   ```
 
 Notes:
 
 - The script will add `CFBundleIconFile` to the Info.plist if an `.icns` is present in `Assets/`.
-- Don't commit binary icons to the repo without maintainers' consent; keep them local or add via releases.
+- Don't commit binary icons or build artifacts to the repo; use `artifacts/` for temporary local zips (and keep it in `.gitignore`).
+- We provide a GitHub Actions workflow `/.github/workflows/release.yml` that can build per-arch artifacts and create a draft GitHub Release (it builds per-arch when appropriate runners are available and uploads per-arch zips as artifacts).
+- To provide both Intel and Apple Silicon binaries, build on a machine of the respective architecture (or use CI runners for each arch). You can then create a universal binary with `lipo` by combining two single-arch binaries, if desired.
+
+## Icon verification
+
+- Verify `.icns` contents and sizes:
+
+  ```bash
+  # extract iconset
+  iconutil -c iconset Assets/AppIcon.icns -o /tmp/AppIcon.iconset
+  ls -la /tmp/AppIcon.iconset
+
+  # regenerate clean icns from iconset
+  iconutil -c icns /tmp/AppIcon.iconset -o Assets/AppIcon.regenerated.icns
+  ```
+
+- Make sure `Assets/AppIcon.icns` contains the standard sizes (16, 32, 128, 256, 512 + @2x retina variants). If not, add missing sizes or replace with a complete icns set.
 
 ## Accessibility & Debugging
 
@@ -60,6 +87,7 @@ Notes:
 ## CI and platform targets
 
 - CI is configured to target macOS 15 and Swift 6.0. If you change the platform or Swift language version, update `.github/workflows/ci.yml` and `Package.swift` accordingly.
+- There's also a `/.github/workflows/release.yml` workflow (manual dispatch) that builds per-arch artifacts, uploads per-arch zips, and can create a draft GitHub Release attaching any produced zips. It will skip a matrix job if a runner for the requested architecture isn't available; for predictable multi-arch builds consider using self-hosted runners for each arch.
 
 ## Contributing
 

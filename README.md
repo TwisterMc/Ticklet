@@ -26,8 +26,8 @@ This README is for end users — concise install and usage instructions are belo
 
 ## Install
 
-- Preferred: download a prebuilt `.app` from the project's GitHub Releases page (recommended for non‑developers).
-- Alternative (developer): build locally with Swift and use the included bundle helper script to create an `.app` wrapper.
+- Preferred: download a prebuilt `.app` from the project's GitHub Releases page — releases may include both **Intel (x86_64)** and **Apple Silicon (arm64)** builds when available (recommended for non‑developers).
+- Alternative (developer): build locally with Swift and use the included bundle helper script to create an `.app` wrapper (see **DEVELOPER.md** for details).
 
 If you install from a release, double‑click the `.app` and allow system prompts as needed.
 
@@ -51,6 +51,8 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
 - Logs Viewer: choose **View Logs…** from the Ticklet menu to open the Log Viewer window.
   - Use the date controls (Back / Forward / Today) to navigate days.
   - Click column headers to sort entries; sorting is remembered.
+  - The **Duration** column shows a compact, human-friendly format (e.g., `30s`, `1m 30s`, `1h 30s`); the underlying CSV stores duration as seconds.
+  - Each row shows the app name **with its icon** (when available) for easier scanning.
   - Use the **Refresh** button to reload the current day's logs, or press **⌘R** (Reload Logs) — it performs the same refresh action.
   - When you open **View Logs…**, Ticklet activates and the Log Viewer window is brought to the front.
   - Window position and size are remembered between launches.
