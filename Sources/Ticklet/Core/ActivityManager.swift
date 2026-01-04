@@ -19,7 +19,10 @@ public final class ActivityManager {
         fileDateFormatter.dateFormat = "yyyy-MM-dd"
 
         tracker.onEntryFinalized = { [weak self] entry in
-            self?.handleFinalized(entry)
+            // Ensure we invoke the handler on the MainActor since ActivityManager is @MainActor
+            Task { @MainActor in
+                self?.handleFinalized(entry)
+            }
         }
     }
 

@@ -121,7 +121,7 @@ public final class ActivityTracker {
         }
     }
 
-    @objc private func tick() {
+    @MainActor @objc func tick() {
         let t = now()
 
         // Idle detection
