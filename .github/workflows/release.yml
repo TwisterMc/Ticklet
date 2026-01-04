@@ -32,18 +32,25 @@ jobs:
             echo "skipping=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Select Xcode (ensure XCTest available)
+      - name: Select system Xcode (prefer /Applications/Xcode.app)
         if: steps.check.outputs.skipping == 'false'
         run: |
-          # Prefer a recent Xcode (if installed) so XCTestCore is available for swift tests
-          if [ -d /Applications/Xcode_16.4.app ]; then
-            echo "Selecting /Applications/Xcode_16.4.app"
+          # Prefer the system-installed Xcode at /Applications/Xcode.app to ensure XCTest is present
+          if [ -d /Applications/Xcode.app ]; then
+            echo "Selecting /Applications/Xcode.app"
+            sudo xcode-select -s /Applications/Xcode.app
+            echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> $GITHUB_ENV
+            xcodebuild -version
+          elif [ -d /Applications/Xcode_16.4.app ]; then
+            echo "/Applications/Xcode.app not found; falling back to /Applications/Xcode_16.4.app"
             sudo xcode-select -s /Applications/Xcode_16.4.app
             echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> $GITHUB_ENV
             xcodebuild -version
           else
-            echo "/Applications/Xcode_16.4.app not found; using system default Xcode"
-            xcodebuild -version || true
+            echo "No known Xcode found under /Applications. Current xcode-select path: $(xcode-select -p || echo '(none)')"
+            echo "Listing /Applications for debugging:"
+            ls -1 /Applications || true
+            echo "Proceeding without switching Xcode; tests may fail if XCTestCore is missing"
           fi
 
       - name: Locate XCTestCore and set DYLD_FRAMEWORK_PATH
