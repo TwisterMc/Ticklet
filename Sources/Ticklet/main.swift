@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Application main menu (About | Preferences | Quit)
         let appName = ProcessInfo.processInfo.processName
         let mainMenu = NSMenu()
+
+        // App menu
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu(title: appName)
@@ -36,6 +38,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenu.addItem(withTitle: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit \(appName)", action: #selector(quit), keyEquivalent: "q")
+
+        // File menu (standard Close Window with Cmd-W)
+        let fileMenuItem = NSMenuItem()
+        mainMenu.addItem(fileMenuItem)
+        let fileMenu = NSMenu(title: "File")
+        fileMenuItem.submenu = fileMenu
+        // Use NSWindow.performClose: so the key window will close
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+
         NSApp.mainMenu = mainMenu
 
         // Status/menu for the status item (keeps existing items)

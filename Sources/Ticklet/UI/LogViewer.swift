@@ -1,6 +1,6 @@
 import AppKit
 
-public final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
+public final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     private let tableView = NSTableView()
     private let scroll = NSScrollView()
     private let datePicker = NSDatePicker()
@@ -9,6 +9,8 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
     private let todayButton = NSButton(title: "Today", target: nil, action: nil)
     private var entries: [ActivityEntry] = []
     private let logger: CSVLogger
+    private let frameDefaultsKey = "LogViewerWindowFrame"
+
 
     // History for back/forward navigation (stores startOfDay dates)
     private var history: [Date] = []
@@ -16,15 +18,20 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
 
     public init(logger: CSVLogger) {
         self.logger = logger
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled, .resizable, .closable], backing: .buffered, defer: false)
+        let defaultRect = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let window = NSWindow(contentRect: defaultRect, styleMask: [.titled, .resizable, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Ticklet Logs"
+        window.delegate = self
+        restoreWindowFrame()
         setupUI()
         // initialize history with today
         let today = Calendar.current.startOfDay(for: Date())
         pushToHistory(today)
         datePicker.dateValue = today
         load(date: today, recordHistory: false)
+        // restore any previously saved sort descriptor
+        restoreSortDescriptor()
     }
 
     required init?(coder: NSCoder) {
@@ -120,21 +127,26 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         let col1 = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("time"))
         col1.title = "Time"
         col1.width = 200
+        // sort by startTime (newest first by default)
+        col1.sortDescriptorPrototype = NSSortDescriptor(key: "startTime", ascending: false)
         tableView.addTableColumn(col1)
 
         let col2 = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("duration"))
         col2.title = "Duration"
         col2.width = 100
+        col2.sortDescriptorPrototype = NSSortDescriptor(key: "durationSeconds", ascending: false)
         tableView.addTableColumn(col2)
 
         let col3 = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("app"))
         col3.title = "App"
         col3.width = 200
+        col3.sortDescriptorPrototype = NSSortDescriptor(key: "appName", ascending: true)
         tableView.addTableColumn(col3)
 
         let col4 = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("window"))
         col4.title = "Window"
         col4.width = 300
+        col4.sortDescriptorPrototype = NSSortDescriptor(key: "windowTitle", ascending: true)
         tableView.addTableColumn(col4)
 
         // Ensure the table is view-based and has a header
@@ -161,7 +173,8 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         do {
             entries = try logger.readEntries(for: keyDate)
             NSLog("[Ticklet] LogViewer.load date=\(keyDate) entries=\(entries.count)")
-            tableView.reloadData()
+            // Apply any current sort descriptor and reload
+            sortEntries()
             // diagnostic: log frames and row count so we can see whether the table is visible
             NSLog("[Ticklet] LogViewer diagnostics: rows=\(tableView.numberOfRows) tableFrame=\(tableView.frame) scrollFrame=\(scroll.frame) visibleRect=\(tableView.visibleRect) contentBounds=\(window?.contentView?.bounds ?? NSRect.zero)")
             // Ensure table is scrolled to top and inspect a few cell views for debugging
@@ -187,7 +200,7 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         } catch {
             NSLog("[Ticklet] LogViewer.load error: \(error)")
             entries = []
-            tableView.reloadData()
+            sortEntries()
             DispatchQueue.main.async { self.updateNavigationButtons() }
         }
     }
@@ -236,6 +249,54 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
     }
 
     // MARK: - Navigation
+
+    // MARK: - Sorting
+    public func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        sortEntries()
+        saveSortDescriptor()
+    }
+
+    private func sortEntries() {
+        let sds = tableView.sortDescriptors
+        guard let sd = sds.first, let key = sd.key else {
+            tableView.reloadData()
+            return
+        }
+        let ascending = sd.ascending
+        entries.sort { a, b in
+            switch key {
+            case "startTime":
+                return ascending ? a.startTime < b.startTime : a.startTime > b.startTime
+            case "durationSeconds":
+                let da = a.durationSeconds ?? -1
+                let db = b.durationSeconds ?? -1
+                return ascending ? da < db : da > db
+            case "appName":
+                let cmp = a.appName.localizedCaseInsensitiveCompare(b.appName)
+                return ascending ? (cmp == .orderedAscending) : (cmp == .orderedDescending)
+            case "windowTitle":
+                let cmp = a.windowTitle.localizedCaseInsensitiveCompare(b.windowTitle)
+                return ascending ? (cmp == .orderedAscending) : (cmp == .orderedDescending)
+            default:
+                return true
+            }
+        }
+        tableView.reloadData()
+    }
+
+    private let sortDefaultsKey = "LogViewerSortDescriptor"
+    private func saveSortDescriptor() {
+        guard let sd = tableView.sortDescriptors.first, let key = sd.key else { return }
+        let dict: [String: Any] = ["key": key, "ascending": sd.ascending]
+        UserDefaults.standard.set(dict, forKey: sortDefaultsKey)
+    }
+
+    private func restoreSortDescriptor() {
+        guard let dict = UserDefaults.standard.dictionary(forKey: sortDefaultsKey), let key = dict["key"] as? String, let ascending = dict["ascending"] as? Bool else { return }
+        let sd = NSSortDescriptor(key: key, ascending: ascending)
+        tableView.sortDescriptors = [sd]
+        sortEntries()
+    }
     private func pushToHistory(_ date: Date) {
         // collapse any forward history and append
         if historyIndex < history.count - 1 {
@@ -293,5 +354,33 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         datePicker.dateValue = today
         load(date: today)
         NSLog("[Ticklet] navigation: today -> \(today)")
+    }
+
+    // MARK: - Window frame persistence
+    private func restoreWindowFrame() {
+        guard let w = window else { return }
+        if let rectString = UserDefaults.standard.string(forKey: frameDefaultsKey) {
+            let r = NSRectFromString(rectString)
+            w.setFrame(r, display: false)
+            NSLog("[Ticklet] LogViewer restored frame: \(r)")
+        } else {
+            w.center()
+            NSLog("[Ticklet] LogViewer centered")
+        }
+    }
+
+    public func windowWillClose(_ notification: Notification) {
+        saveWindowFrame()
+    }
+
+    public func windowDidMove(_ notification: Notification) {
+        saveWindowFrame()
+    }
+
+    private func saveWindowFrame() {
+        guard let w = window else { return }
+        let s = NSStringFromRect(w.frame)
+        UserDefaults.standard.set(s, forKey: frameDefaultsKey)
+        NSLog("[Ticklet] LogViewer saved frame: \(w.frame)")
     }
 }
