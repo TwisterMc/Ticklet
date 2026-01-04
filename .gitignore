@@ -19,3 +19,10 @@ DerivedData/
 artifacts/
 Ticklet.app
 Assets/Generated-AppIcon.icns
+
+# Temporary and developer files (not for version control)
+tmp/
+tmp_install/
+.swiftpm/
+**/xcuserdata/
+**/*.xcuserdatad/
