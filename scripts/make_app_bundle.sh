@@ -8,7 +8,13 @@ set -euo pipefail
 EXEC_PATH="$1"
 OUT_APP_PATH="${2:-./Ticklet.app}"
 BUNDLE_ID="${3:-com.yourname.Ticklet}"
-ICON_PATH="${4:-}"
+# Prefer the repo asset at Assets/AppIcon.icns when present; do not use a passed icon path
+if [ -f "./Assets/AppIcon.icns" ]; then
+  ICON_PATH="./Assets/AppIcon.icns"
+  echo "Using repository icon: $ICON_PATH"
+else
+  ICON_PATH=""
+fi
 
 if [ ! -f "$EXEC_PATH" ]; then
   echo "Executable not found: $EXEC_PATH" >&2

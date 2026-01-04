@@ -203,21 +203,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateAccessibilityMenuItem() {
         let trusted = AXIsProcessTrusted()
         NSLog("[Ticklet] updateAccessibilityMenuItem called - trusted: \(trusted) - accessibilityMenuItem exists: \(accessibilityMenuItem != nil) - previousTitle: \(accessibilityMenuItem?.title ?? "<nil>")")
-        // Keep the item visible so it can always show the current state for debugging
         if trusted {
-            accessibilityMenuItem?.isHidden = false
-            accessibilityMenuItem?.title = "✅ Accessibility: Enabled"
+            // If accessibility is enabled, hide the prompt and debug items to reduce menu clutter
+            accessibilityMenuItem?.isHidden = true
             accessibilityMenuItem?.isEnabled = false
+            accessibilityMenuItem?.title = "✅ Accessibility: Enabled"
+            debugMenuItem?.isHidden = true
+
+            // Hide any visible copy of the accessibility item in the actual menu so it cannot show stale text
+            if let first = statusItem?.menu?.items.first {
+                first.isHidden = true
+                first.title = accessibilityMenuItem?.title ?? "✅ Accessibility: Enabled"
+                first.isEnabled = false
+                first.target = nil
+                first.action = nil
+                NSLog("[Ticklet] updateAccessibilityMenuItem: hid visible first menu item")
+            }
         } else {
             accessibilityMenuItem?.isHidden = false
             accessibilityMenuItem?.title = "⚠️ Accessibility permission required — Enable…"
             accessibilityMenuItem?.isEnabled = true
-        }
 
-        // Keep the debug item enabled so user can inspect the environment
-        debugMenuItem?.isHidden = false
-        debugMenuItem?.isEnabled = true
-        NSLog("[Ticklet] accessibilityMenuItem now: \(accessibilityMenuItem?.title ?? "<nil>")")
+            // Keep the debug item visible when troubleshooting
+            debugMenuItem?.isHidden = false
+            debugMenuItem?.isEnabled = true
+
+            // Ensure the visible first menu item is present and invites enabling
+            if let first = statusItem?.menu?.items.first {
+                first.isHidden = false
+                first.title = accessibilityMenuItem?.title ?? "⚠️ Accessibility permission required — Enable…"
+                first.isEnabled = true
+                first.target = self
+                first.action = #selector(openAccessibilityPreferences)
+                NSLog("[Ticklet] updateAccessibilityMenuItem: showed visible first menu item")
+            }
+        }
+        NSLog("[Ticklet] accessibilityMenuItem now: \(accessibilityMenuItem?.title ?? "<nil>") hidden=\(accessibilityMenuItem?.isHidden ?? false)")
     }
 
     @objc private func openAccessibilityPreferences() {
@@ -295,16 +316,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let itemTitles = menu.items.map { $0.title }.joined(separator: " | ")
         NSLog("[Ticklet] menuWillOpen: firstItem=\(menu.items.first?.title ?? "<none>") items=\(itemTitles) accessibilityMenuItem=\(accessibilityMenuItem?.title ?? "<nil>")")
         updateAccessibilityMenuItem()
-        // Ensure the visible menu's first item matches our accessibilityMenuItem (some NSStatusItem menus may copy items)
+
+        // Ensure the visible first item reflects the CURRENT permission state (avoid stale "Checking…")
+        let trusted = AXIsProcessTrusted()
         if let first = menu.items.first {
-            if first !== accessibilityMenuItem {
-                NSLog("[Ticklet] menuWillOpen: syncing visible first item (\(first.title)) -> (\(accessibilityMenuItem?.title ?? "<nil>"))")
-                first.title = accessibilityMenuItem?.title ?? first.title
-                first.isEnabled = accessibilityMenuItem?.isEnabled ?? first.isEnabled
-                first.target = accessibilityMenuItem?.target ?? first.target
-                first.action = accessibilityMenuItem?.action ?? first.action
+            if trusted {
+                // Show a disabled, affirmative state so the menu doesn't show stale prompts
+                first.title = "✅ Accessibility: Enabled"
+                first.isEnabled = false
+                first.target = nil
+                first.action = nil
+            } else if let ai = accessibilityMenuItem, ai.isHidden == false {
+                // If our internal accessibility item is visible, sync it into the visible menu
+                if first !== ai {
+                    NSLog("[Ticklet] menuWillOpen: syncing visible first item (\(first.title)) -> (\(ai.title))")
+                    first.title = ai.title
+                    first.isEnabled = ai.isEnabled
+                    first.target = ai.target
+                    first.action = ai.action
+                }
+            } else {
+                // No internal accessibility item visible; ensure the first item invites enabling
+                first.title = "⚠️ Accessibility permission required — Enable…"
+                first.isEnabled = true
+                first.target = self
+                first.action = #selector(openAccessibilityPreferences)
             }
         }
+
+        // Ensure debug item visibility matches permission state
+        if trusted {
+            debugMenuItem?.isHidden = true
+        } else {
+            debugMenuItem?.isHidden = false
+            debugMenuItem?.isEnabled = true
+        }
+
         NSLog("[Ticklet] menuWillOpen after update: accessibilityMenuItem=\(accessibilityMenuItem?.title ?? "<nil>") visibleFirst=\(menu.items.first?.title ?? "<none>")")
     }
 
