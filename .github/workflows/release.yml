@@ -71,32 +71,68 @@ jobs:
             echo "WARNING: XCTestCore.framework not found; tests may fail to load on this runner"
           fi
 
-      - name: Embed XCTestCore into test bundle (if found)
+      - name: Embed XCTestCore into test bundle (robust search & diagnostics)
         if: steps.check.outputs.skipping == 'false'
         run: |
-          set -e
+          set -euo pipefail
           TESTBUNDLE=$(find .build-${{ matrix.arch }} -name '*.xctest' -print -quit || true)
           if [ -z "$TESTBUNDLE" ]; then
             echo "No .xctest found under .build-${{ matrix.arch }}; skipping embed"
             exit 0
           fi
-          if [ -z "${DYLD_FRAMEWORK_PATH}" ]; then
-            echo "DYLD_FRAMEWORK_PATH not set; XCTestCore location unknown; skipping embed"
+
+          echo "Locating XCTestCore.framework (checking multiple locations)"
+          CANDIDATES=(
+            "${DYLD_FRAMEWORK_PATH:-}"
+            "$(xcode-select -p)/PlatformBundles/"
+            "$(xcode-select -p)/Platforms/MacOSX.platform/Developer/Library/Frameworks"
+            "$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx/testing"
+            "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks"
+            "/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks"
+            "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/lib"
+            "/Users/runner/hostedtoolcache/swift-macOS/6.0.3/arm64/usr/libexec/swift/lib"
+            "/usr/lib/swift"
+            "/System/Library/Frameworks"
+            "/Applications"
+          )
+
+          FOUND=""
+          for p in "${CANDIDATES[@]}"; do
+            if [ -z "$p" ]; then continue; fi
+            # If candidate is a dir that contains XCTestCore.framework
+            if [ -d "$p/XCTestCore.framework" ]; then
+              FOUND="$p/XCTestCore.framework"
+              echo "Found XCTestCore at $FOUND"
+              break
+            fi
+            # If candidate itself is a framework path
+            if [ -d "$p" ] && [[ $(basename "$p") == "XCTestCore.framework" ]]; then
+              FOUND="$p"
+              echo "Found XCTestCore at $FOUND"
+              break
+            fi
+          done
+
+          if [ -z "$FOUND" ]; then
+            echo "Did not find XCTestCore in candidates; doing wide search (this may take a few seconds)"
+            FOUND=$(find /Applications /usr -type d -name XCTestCore.framework -maxdepth 6 -print -quit || true)
+          fi
+
+          if [ -z "$FOUND" ]; then
+            echo "XCTestCore.framework not found; tests may still fail to dlopen"
+            echo "Searched candidates:"
+            printf '%s
+' "${CANDIDATES[@]}"
             exit 0
           fi
-          XCT_PATH="${DYLD_FRAMEWORK_PATH}/XCTestCore.framework"
-          if [ ! -d "$XCT_PATH" ]; then
-            echo "XCTestCore.framework not at $XCT_PATH; searching in /Applications..."
-            FOUND2=$(find /Applications -type d -name "XCTestCore.framework" -maxdepth 4 -print -quit || true)
-            if [ -n "$FOUND2" ]; then XCT_PATH="$FOUND2"; fi
-          fi
-          if [ -d "$XCT_PATH" ]; then
-            echo "Embedding XCTestCore from $XCT_PATH into $TESTBUNDLE/Contents/Frameworks"
-            mkdir -p "$TESTBUNDLE/Contents/Frameworks"
-            cp -R "$XCT_PATH" "$TESTBUNDLE/Contents/Frameworks/"
-          else
-            echo "XCTestCore.framework not found; tests may still fail to dlopen"
-          fi
+
+          echo "Embedding XCTestCore from $FOUND into $TESTBUNDLE/Contents/Frameworks"
+          mkdir -p "$TESTBUNDLE/Contents/Frameworks"
+          cp -R "$FOUND" "$TESTBUNDLE/Contents/Frameworks/"
+
+          echo "Listing embedded frameworks in test bundle:"
+          ls -la "$TESTBUNDLE/Contents/Frameworks" || true
+          echo "Done"
 
       - name: Run tests
         if: steps.check.outputs.skipping == 'false'
