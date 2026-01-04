@@ -11,3 +11,8 @@ DerivedData/
 
 # SwiftPM
 .build/
+
+# Artifacts and generated bundles
+artifacts/
+Ticklet.app
+Assets/Generated-AppIcon.icns

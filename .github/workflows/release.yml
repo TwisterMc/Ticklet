@@ -1,0 +1,129 @@
+name: Build & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.0). If omitted a draft with run id is used.'
+        required: false
+
+jobs:
+  build:
+    name: Build per-arch
+    runs-on: macos-13
+    strategy:
+      matrix:
+        arch: [x86_64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Swift
+        uses: fwal/setup-swift@v2
+        with:
+          swift-version: '6.0'
+
+      - name: Check runner architecture
+        id: check
+        run: |
+          echo "runner=$(uname -m)"
+          if [ "$(uname -m)" != "${{ matrix.arch }}" ]; then
+            echo "skipping=true" >> $GITHUB_OUTPUT
+            echo "Wanted arch=${{ matrix.arch }} but runner arch=$(uname -m). Skipping build on this runner."
+          else
+            echo "skipping=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build (release)
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          swift build -c release --build-path .build-${{ matrix.arch }}
+
+      - name: Create .app bundle
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          set -e
+          # locate built executable (path varies by build-path)
+          EXEC=$(find .build-${{ matrix.arch }} -type f -name Ticklet -path "*release*" -print -quit)
+          if [ -z "$EXEC" ]; then echo "Executable not found"; exit 1; fi
+          mkdir -p ./artifacts
+          OUT_APP=./artifacts/Ticklet-${{ matrix.arch }}.app
+          ./scripts/make_app_bundle.sh "$EXEC" "$OUT_APP" com.thomas.Ticklet
+
+      - name: Zip .app
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent ./artifacts/Ticklet-${{ matrix.arch }}.app ./artifacts/Ticklet-${{ matrix.arch }}.zip
+
+      - name: Upload artifacts
+        if: steps.check.outputs.skipping == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ticklet-${{ matrix.arch }}.zip
+          path: ./artifacts/Ticklet-${{ matrix.arch }}.zip
+
+  release:
+    name: Draft GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download x86_64 artifact (if any)
+        uses: actions/download-artifact@v4
+        with:
+          name: Ticklet-x86_64.zip
+          path: ./downloads/x86_64
+          if-no-files-found: ignore
+
+      - name: Download arm64 artifact (if any)
+        uses: actions/download-artifact@v4
+        with:
+          name: Ticklet-arm64.zip
+          path: ./downloads/arm64
+          if-no-files-found: ignore
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            T="auto-${{ github.run_id }}"
+            echo "tag=$T" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Draft Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: "Ticklet ${{ steps.tag.outputs.tag }}"
+          body: |-
+            Automated build artifacts for ${{ steps.tag.outputs.tag }}.
+          draft: true
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload x86_64 asset (if present)
+        if: ${{ contains( steps.create_release.outputs.upload_url || '', 'https' ) && (file_exists('./downloads/x86_64/Ticklet-x86_64.zip') || file_exists('./artifacts/Ticklet-x86_64.zip')) }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./downloads/x86_64/Ticklet-x86_64.zip
+          asset_name: Ticklet-x86_64.zip
+          asset_content_type: application/zip
+
+      - name: Upload arm64 asset (if present)
+        if: ${{ contains( steps.create_release.outputs.upload_url || '', 'https' ) && (file_exists('./downloads/arm64/Ticklet-arm64.zip') || file_exists('./artifacts/Ticklet-arm64.zip')) }}
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./downloads/arm64/Ticklet-arm64.zip
+          asset_name: Ticklet-arm64.zip
+          asset_content_type: application/zip
+
+      - name: Output Release URL
+        run: |
+          echo "Release draft created: https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.tag }}"

@@ -9,7 +9,7 @@
 	<key>CFBundleIdentifier</key>
 	<string>com.thomas.Ticklet</string>
 	<key>CFBundleName</key>
-	<string>Ticklet</string>
+	<string>Ticklet-x86_64</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
