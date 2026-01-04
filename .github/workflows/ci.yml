@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Swift
+        uses: fwal/setup-swift@v2
+        with:
+          swift-version: "5.7"
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
