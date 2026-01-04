@@ -35,10 +35,8 @@ public final class PreferencesWindowController: NSWindowController, NSWindowDele
         if let rectString = UserDefaults.standard.string(forKey: frameDefaultsKey) {
             let r = NSRectFromString(rectString)
             w.setFrame(r, display: false)
-            NSLog("[Ticklet] Preferences window restored frame: \(r)")
         } else {
             w.center()
-            NSLog("[Ticklet] Preferences window centered")
         }
     }
 
@@ -54,7 +52,6 @@ public final class PreferencesWindowController: NSWindowController, NSWindowDele
         guard let w = window else { return }
         let s = NSStringFromRect(w.frame)
         UserDefaults.standard.set(s, forKey: frameDefaultsKey)
-        NSLog("[Ticklet] Preferences window saved frame: \(w.frame)")
     }
 
     @objc private func toggleStatusItem(_ sender: NSButton) {

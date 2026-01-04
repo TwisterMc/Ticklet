@@ -82,11 +82,9 @@ public final class CSVLogger: LogWriter {
     public func readEntries(for date: Date) throws -> [ActivityEntry] {
         let filename = "ticklet-\(fileDateFormatter.string(from: date)).csv"
         let fileURL = directory.appendingPathComponent(filename)
-        NSLog("[Ticklet] CSVLogger.readEntries reading file: \(fileURL.path)")
         let data = try String(contentsOf: fileURL, encoding: .utf8)
         var entries: [ActivityEntry] = []
         let lines = data.components(separatedBy: CharacterSet.newlines)
-        NSLog("[Ticklet] CSVLogger.readEntries: lines=\(lines.count)")
         guard lines.count > 1 else { return [] }
         for line in lines.dropFirst() {
             if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
@@ -101,7 +99,6 @@ public final class CSVLogger: LogWriter {
                 entries.append(e)
             }
         }
-        NSLog("[Ticklet] CSVLogger.readEntries: parsedEntries=\(entries.count)")
         return entries
     }
 

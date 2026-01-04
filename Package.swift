@@ -1,9 +1,9 @@
-// swift-tools-version:5.7
+// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
     name: "Ticklet",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "Ticklet", targets: ["Ticklet"]),
     ],

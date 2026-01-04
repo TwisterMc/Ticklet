@@ -6,7 +6,7 @@ This repository follows the project spec in `.github/copilot-instructions.md.md`
 
 ## Build & Run
 
-Requires macOS 12+ and Swift 5.7+. You can build with SwiftPM or open in Xcode (recommended for AppKit apps).
+Requires macOS 15+ and Swift 6+. You can build with SwiftPM or open in Xcode (recommended for AppKit apps).
 
 - Build with SwiftPM: `swift build`
 - Run in Xcode: open the folder in Xcode and run the `Ticklet` executable target (use a macOS scheme)

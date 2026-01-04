@@ -24,13 +24,19 @@ public final class ActivityTracker {
 
     public init(now: @escaping () -> Date = { Date() }) {
         self.now = now
-        NSLog("[Ticklet] ActivityTracker initialized — debounceWindow=\(debounceWindow)s minEntryDuration=\(minEntryDuration)s idleThreshold=\(idleThreshold)s")
+
     }
 
     public func start() {
-        DispatchQueue.main.async {
-            self.timer = Timer.scheduledTimer(timeInterval: self.pollInterval, target: self, selector: #selector(self.tick), userInfo: nil, repeats: true)
+        // start must be called from the main thread / main actor
+        precondition(Thread.isMainThread, "ActivityTracker.start() must be called on the main thread")
+
+        // Use the closure-based timer to avoid selector/target data-race warnings
+        let t = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+            self?.tick()
         }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
 
         // Also monitor for user input to update `lastUserActivity` so idle detection works
         NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] _ in

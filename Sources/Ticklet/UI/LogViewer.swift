@@ -172,28 +172,11 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         }
         do {
             entries = try logger.readEntries(for: keyDate)
-            NSLog("[Ticklet] LogViewer.load date=\(keyDate) entries=\(entries.count)")
             // Apply any current sort descriptor and reload
             sortEntries()
-            // diagnostic: log frames and row count so we can see whether the table is visible
-            NSLog("[Ticklet] LogViewer diagnostics: rows=\(tableView.numberOfRows) tableFrame=\(tableView.frame) scrollFrame=\(scroll.frame) visibleRect=\(tableView.visibleRect) contentBounds=\(window?.contentView?.bounds ?? NSRect.zero)")
-            // Ensure table is scrolled to top and inspect a few cell views for debugging
             DispatchQueue.main.async {
                 if self.tableView.numberOfRows > 0 {
                     self.tableView.scrollRowToVisible(0)
-                    let cols = self.tableView.tableColumns
-                    for row in 0 ..< min(self.tableView.numberOfRows, 10) {
-                        for (ci, col) in cols.enumerated() {
-                            if let v = self.tableView.view(atColumn: ci, row: row, makeIfNecessary: false) {
-                                NSLog("[Ticklet] cell view (row=\(row) col=\(col.identifier.rawValue)): \(v) subviews=\(v.subviews)")
-                                if let tv = v.subviews.compactMap({ $0 as? NSTextField }).first {
-                                    NSLog("[Ticklet] cell text (row=\(row) col=\(col.identifier.rawValue)): '\(tv.stringValue)'")
-                                }
-                            } else {
-                                NSLog("[Ticklet] no cell view for row=\(row) col=\(col.identifier.rawValue)")
-                            }
-                        }
-                    }
                 }
                 self.updateNavigationButtons()
             }
@@ -311,7 +294,6 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         history.append(date)
         historyIndex = history.count - 1
         updateNavigationButtons()
-        NSLog("[Ticklet] history push: index=\(historyIndex) count=\(history.count) date=\(date)")
     }
 
     private func updateNavigationButtons() {
@@ -322,16 +304,14 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         // Forward only allowed when the selected date is before today
         forwardButton.isEnabled = selected < today
         todayButton.isEnabled = !Calendar.current.isDate(selected, inSameDayAs: today)
-        NSLog("[Ticklet] LogViewer navigation buttons - selected=\(selected) backEnabled=\(backButton.isEnabled) forwardEnabled=\(forwardButton.isEnabled) todayEnabled=\(todayButton.isEnabled)")
+
     }
 
     @objc private func goBack() {
-        NSLog("[Ticklet] LogViewer.goBack invoked (current=\(datePicker.dateValue))")
         let current = datePicker.dateValue
         if let prev = Calendar.current.date(byAdding: .day, value: -1, to: current) {
             datePicker.dateValue = prev
             load(date: prev, recordHistory: false)
-            NSLog("[Ticklet] navigation: back -> \(prev)")
         }
     }
 
@@ -344,7 +324,6 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
             if nextStart <= today {
                 datePicker.dateValue = next
                 load(date: next, recordHistory: false)
-                NSLog("[Ticklet] navigation: forward -> \(next)")
             }
         }
     }
@@ -353,7 +332,6 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         let today = Calendar.current.startOfDay(for: Date())
         datePicker.dateValue = today
         load(date: today)
-        NSLog("[Ticklet] navigation: today -> \(today)")
     }
 
     // MARK: - Window frame persistence
@@ -362,10 +340,8 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         if let rectString = UserDefaults.standard.string(forKey: frameDefaultsKey) {
             let r = NSRectFromString(rectString)
             w.setFrame(r, display: false)
-            NSLog("[Ticklet] LogViewer restored frame: \(r)")
         } else {
             w.center()
-            NSLog("[Ticklet] LogViewer centered")
         }
     }
 
@@ -381,6 +357,5 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         guard let w = window else { return }
         let s = NSStringFromRect(w.frame)
         UserDefaults.standard.set(s, forKey: frameDefaultsKey)
-        NSLog("[Ticklet] LogViewer saved frame: \(w.frame)")
     }
 }

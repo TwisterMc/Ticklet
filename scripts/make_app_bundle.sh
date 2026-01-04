@@ -66,6 +66,8 @@ cat > "$INFOPLIST" <<PLIST
   <string>0</string>
   <key>CFBundleShortVersionString</key>
   <string>0.0.0</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>15.0</string>
 </dict>
 </plist>
 PLIST

@@ -8,14 +8,16 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Install Swift
         uses: fwal/setup-swift@v2
         with:
-          swift-version: "5.7"
-      - name: Build
+          swift-version: "6.0"
+      - name: Build (debug)
         run: swift build
       - name: Test
         run: swift test
+      - name: Build (release)
+        run: swift build -c release

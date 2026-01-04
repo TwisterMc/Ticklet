@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem?
     var logger: CSVLogger?
@@ -56,20 +57,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let accessItem = NSMenuItem(title: "Accessibility: Checking…", action: #selector(openAccessibilityPreferences), keyEquivalent: "")
         accessItem.target = self
         menu.addItem(accessItem)
-        self.accessibilityMenuItem = accessItem
-        NSLog("[Ticklet] created accessibilityMenuItem: \(accessibilityMenuItem?.title ?? "<nil>")")
 
         // Debug info item to help diagnose permission issues
         let debugItem = NSMenuItem(title: "Accessibility: Debug Info…", action: #selector(showAccessibilityDebugInfo), keyEquivalent: "")
         debugItem.target = self
         menu.addItem(debugItem)
-        NSLog("[Ticklet] created debugMenuItem: \(debugItem.title)")
-
-        menu.addItem(.separator())
-
-        // ensure menu updates when opened
-        menu.delegate = self
-        NSLog("[Ticklet] menu created with firstItem=\(menu.items.first?.title ?? "<none>") items=\(menu.items.map { $0.title }.joined(separator: " | "))")
 
         self.debugMenuItem = debugItem
         self.accessibilityMenuItem = accessItem
@@ -111,10 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             }
 
-            // Update accessibility menu item visibility (we do not use the icon for warnings)
-            NSLog("[Ticklet] calling updateAccessibilityMenuItem at launch")
+            // Update accessibility menu item visibility
             updateAccessibilityMenuItem()
-            NSLog("[Ticklet] called updateAccessibilityMenuItem at launch - title=\(accessibilityMenuItem?.title ?? "<nil>")")
 
         } catch {
             print("Failed to initialize logger: \(error)")
@@ -164,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         }
         statusItem?.menu = menu
-        NSLog("[Ticklet] createStatusItem - assigned menu with firstItem=\(menu.items.first?.title ?? "<none>")")
+
         if let btn = statusItem?.button {
             if let img = makeStatusImage() {
                 img.isTemplate = true // let system tint the symbol appropriately for light/dark
@@ -213,7 +203,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateAccessibilityMenuItem() {
         let trusted = AXIsProcessTrusted()
-        NSLog("[Ticklet] updateAccessibilityMenuItem called - trusted: \(trusted) - accessibilityMenuItem exists: \(accessibilityMenuItem != nil) - previousTitle: \(accessibilityMenuItem?.title ?? "<nil>")")
         if trusted {
             // If accessibility is enabled, hide the prompt and debug items to reduce menu clutter
             accessibilityMenuItem?.isHidden = true
@@ -228,7 +217,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 first.isEnabled = false
                 first.target = nil
                 first.action = nil
-                NSLog("[Ticklet] updateAccessibilityMenuItem: hid visible first menu item")
             }
         } else {
             accessibilityMenuItem?.isHidden = false
@@ -246,7 +234,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 first.isEnabled = true
                 first.target = self
                 first.action = #selector(openAccessibilityPreferences)
-                NSLog("[Ticklet] updateAccessibilityMenuItem: showed visible first menu item")
             }
         }
         NSLog("[Ticklet] accessibilityMenuItem now: \(accessibilityMenuItem?.title ?? "<nil>") hidden=\(accessibilityMenuItem?.isHidden ?? false)")
@@ -254,7 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openAccessibilityPreferences() {
         // Prompt the system dialog and open System Settings to Accessibility
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let options = ["AXTrustedCheckOptionPrompt" as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
 
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
@@ -324,8 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - NSMenuDelegate
     public func menuWillOpen(_ menu: NSMenu) {
-        let itemTitles = menu.items.map { $0.title }.joined(separator: " | ")
-        NSLog("[Ticklet] menuWillOpen: firstItem=\(menu.items.first?.title ?? "<none>") items=\(itemTitles) accessibilityMenuItem=\(accessibilityMenuItem?.title ?? "<nil>")")
+
         updateAccessibilityMenuItem()
 
         // Ensure the visible first item reflects the CURRENT permission state (avoid stale "Checking…")
@@ -340,7 +326,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             } else if let ai = accessibilityMenuItem, ai.isHidden == false {
                 // If our internal accessibility item is visible, sync it into the visible menu
                 if first !== ai {
-                    NSLog("[Ticklet] menuWillOpen: syncing visible first item (\(first.title)) -> (\(ai.title))")
                     first.title = ai.title
                     first.isEnabled = ai.isEnabled
                     first.target = ai.target
@@ -363,7 +348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             debugMenuItem?.isEnabled = true
         }
 
-        NSLog("[Ticklet] menuWillOpen after update: accessibilityMenuItem=\(accessibilityMenuItem?.title ?? "<nil>") visibleFirst=\(menu.items.first?.title ?? "<none>")")
+
     }
 
     @objc private func openLogsFolder() {
