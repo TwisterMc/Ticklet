@@ -26,7 +26,7 @@ This README is for end users — concise install and usage instructions are belo
 
 ## Install
 
-- Preferred: download a prebuilt `.app` from the project's GitHub Releases page — releases may include both **Intel (x86_64)** and **Apple Silicon (arm64)** builds when available (recommended for non‑developers).
+- Preferred: download a prebuilt `.app` from the project's GitHub Releases page — releases may include both **Intel (x86_64)** and **Apple Silicon (arm64)** builds when available; artifacts may be named like `Ticklet-<arch>.zip` (recommended for non‑developers).
 - Alternative (developer): build locally with Swift and use the included bundle helper script to create an `.app` wrapper (see **DEVELOPER.md** for details).
 
 If you install from a release, double‑click the `.app` and allow system prompts as needed.
@@ -72,6 +72,25 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
 - If Ticklet asks for permission again after an update, open it from your **Applications** folder and re-enable the permission; if prompts continue, download the official build from the project's Releases page or contact the maintainer for help.
 
 (Developer note: More technical signing and notarization guidance is available in `DEVELOPER.md`.)
+
+## Packaging & Signing (developer note) 🔐
+
+- For local builds the included packaging helper (`./scripts/make_app_bundle.sh`) will perform an **ad‑hoc sign by default** so the produced `.app` behaves better when double‑clicked for testing (you do not need to set `SIGN_IDENTITY` to get an ad‑hoc sign).
+
+- To explicitly perform ad‑hoc signing (testing):
+
+```bash
+./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app com.thomas.Ticklet
+```
+
+- To sign for distribution, set `SIGN_IDENTITY` to your Developer ID identity. You can also provide `ENTITLEMENTS` and `SIGN_OPTIONS` for hardened runtime / notarization, for example:
+
+```bash
+ENTITLEMENTS='resources/entitlements.plist' SIGN_OPTIONS='--options runtime --timestamp' \
+  SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app com.thomas.Ticklet
+```
+
+- For full signing & notarization instructions (CI integration, exporting `.p12`, verifying with `codesign -dvvv` and `spctl`), see `DEVELOPER.md`.
 
 ---
 

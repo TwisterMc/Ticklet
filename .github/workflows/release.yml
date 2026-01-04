@@ -47,27 +47,23 @@ jobs:
           if [ -z "$EXEC" ]; then echo "Executable not found"; exit 1; fi
           mkdir -p ./artifacts
           # Create an arch-specific temp app bundle
-          TMP_APP=./artifacts/Ticklet-${{ matrix.arch }}.app
-          ./scripts/make_app_bundle.sh "$EXEC" "$TMP_APP" com.thomas.Ticklet
-          # Normalize the .app name inside a staging dir so zips always contain Ticklet.app
-          STAGING=./artifacts/staging-${{ matrix.arch }}
-          rm -rf "$STAGING"
-          mkdir -p "$STAGING"
-          cp -R "$TMP_APP" "$STAGING/Ticklet.app"
-          # Normalize the staging copy to remove lingering xattrs/flags that can cause Finder to skip items
+          TMP_DIR=./artifacts/${{ matrix.arch }}
+          mkdir -p "$TMP_DIR"
+          ./scripts/make_app_bundle.sh "$EXEC" "$TMP_DIR/Ticklet.app" com.thomas.Ticklet
+          # Normalize the staged Ticklet.app to remove lingering xattrs/flags that can cause Finder to skip items
           echo "Normalizing staged Ticklet.app: removing xattrs and clearing flags"
           if command -v xattr >/dev/null 2>&1; then
-            xattr -cr "$STAGING/Ticklet.app" || true
-            xattr -dr com.apple.provenance "$STAGING/Ticklet.app" || true
+            xattr -cr "$TMP_DIR/Ticklet.app" || true
+            xattr -dr com.apple.provenance "$TMP_DIR/Ticklet.app" || true
           fi
           if command -v chflags >/dev/null 2>&1; then
-            chflags -R nouchg "$STAGING/Ticklet.app" || true
+            chflags -R nouchg "$TMP_DIR/Ticklet.app" || true
           fi
-          chmod -R u+rwX "$STAGING/Ticklet.app" || true
+          chmod -R u+rwX "$TMP_DIR/Ticklet.app" || true
           # Verify the staged zip can be copied (simulate an install). This helps catch Finder-skipped items early.
           echo "Running packaging verification (simulate install)"
           VERIFY_TMP=$(mktemp -d)
-          ditto -c -k --sequesterRsrc --keepParent "$STAGING/Ticklet.app" "$VERIFY_TMP/test.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$TMP_DIR/Ticklet.app" "$VERIFY_TMP/test.zip"
           mkdir -p "$VERIFY_TMP/unpack"
           unzip -qq -d "$VERIFY_TMP/unpack" "$VERIFY_TMP/test.zip"
           mkdir -p "$VERIFY_TMP/install"
@@ -90,11 +86,10 @@ jobs:
         if: steps.check.outputs.skipping == 'false'
         run: |
           mkdir -p artifacts
-          # Zip the normalized Ticklet.app (inside staging) into an arch-specific zip
-          ditto -c -k --sequesterRsrc --keepParent ./artifacts/staging-${{ matrix.arch }}/Ticklet.app ./artifacts/Ticklet-${{ matrix.arch }}.zip
-          # Cleanup staging and temp app
-          rm -rf ./artifacts/staging-${{ matrix.arch }}
-          rm -rf ./artifacts/Ticklet-${{ matrix.arch }}.app
+          # Zip the normalized Ticklet.app (inside the per-arch directory) into an arch-specific zip
+          ditto -c -k --sequesterRsrc --keepParent "$TMP_DIR/Ticklet.app" ./artifacts/Ticklet-${{ matrix.arch }}.zip
+          # Cleanup per-arch temp dir
+          rm -rf "$TMP_DIR"
 
       - name: Upload artifacts
         if: steps.check.outputs.skipping == 'false'

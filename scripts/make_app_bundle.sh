@@ -25,7 +25,8 @@ EXEC_BASENAME=$(basename "$EXEC_PATH")
 APP_NAME=$(basename "$OUT_APP_PATH" .app)
 
 # Versioning: allow callers to override the app version and build via env vars
-APP_VERSION="${APP_VERSION:-0.0.0}"
+# Default to the next release version
+APP_VERSION="${APP_VERSION:-0.0.2}"
 APP_BUILD="${APP_BUILD:-0}"
 
 CONTENTS="$OUT_APP_PATH/Contents"
@@ -60,10 +61,12 @@ cat > "$INFOPLIST" <<PLIST
 <dict>
   <key>CFBundleExecutable</key>
   <string>$EXEC_BASENAME</string>
+  <key>CFBundleDisplayName</key>
+  <string>$EXEC_BASENAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
-  <string>$APP_NAME</string>
+  <string>$EXEC_BASENAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleVersion</key>
@@ -118,13 +121,22 @@ fi
 
 echo "App bundle created: $OUT_APP_PATH"
 
-# If the output is created inside ./artifacts and has an arch suffix (e.g. Ticklet-x86_64.app),
+# If the output is created inside ./artifacts and has an arch suffix (e.g. Ticklet-<arch>.app),
 # create a canonical ./artifacts/Ticklet.app copy so install instructions can be run reliably.
 OUT_DIR=$(dirname "$OUT_APP_PATH")
 OUT_BASE=$(basename "$OUT_APP_PATH")
-# Robust detection: accept OUT_DIR that is exactly 'artifacts', './artifacts', or contains '/artifacts'
-if echo "$OUT_BASE" | grep -qE '^Ticklet-[a-zA-Z0-9_]+\.app$' && ( [ "$(basename "$OUT_DIR")" = "artifacts" ] || echo "$OUT_DIR" | grep -q '/artifacts' || [ "$OUT_DIR" = "artifacts" ] ); then
-  CANONICAL="$OUT_DIR/Ticklet.app"
+# Support two artifact layouts:
+#  - per-arch file: ./artifacts/Ticklet-<arch>.app
+#  - per-arch dir:  ./artifacts/<arch>/Ticklet.app
+# Determine the artifacts directory (parent 'artifacts') when given a per-arch dir
+ARTIFACTS_DIR="$OUT_DIR"
+if [ "$OUT_BASE" = "Ticklet.app" ] && [ "$(basename "$OUT_DIR")" != "artifacts" ]; then
+  ARTIFACTS_DIR="$(dirname "$OUT_DIR")"
+fi
+# If the output looks like an arch-specific artifact or is inside an artifacts/<arch> folder,
+# create/update a canonical ./artifacts/Ticklet.app copy so install instructions can be run reliably.
+if ( echo "$OUT_BASE" | grep -qE '^Ticklet-[a-zA-Z0-9_]+\.app$' ) || ( echo "$OUT_APP_PATH" | grep -qE '/artifacts/[^/]+/Ticklet.app$' ) || [ "$(basename "$ARTIFACTS_DIR")" = "artifacts" ]; then
+  CANONICAL="$ARTIFACTS_DIR/Ticklet.app"
   echo "Creating canonical artifact: $CANONICAL"
   rm -rf "$CANONICAL" || true
   cp -R "$OUT_APP_PATH" "$CANONICAL"
@@ -139,14 +151,32 @@ if echo "$OUT_BASE" | grep -qE '^Ticklet-[a-zA-Z0-9_]+\.app$' && ( [ "$(basename
   chmod -R u+rwX "$CANONICAL" || true
   echo "Canonical artifact ready: $CANONICAL"
 
-  # If a signing identity is provided via SIGN_IDENTITY, sign the artifact and show verification output
+  # By default, if SIGN_IDENTITY is not set, perform an ad-hoc sign so local builds are signed for testing.
+# You can override this by setting SIGN_IDENTITY to a specific identity (e.g. "Developer ID Application: Name (TEAMID)")
+# or set it to an empty string to skip signing entirely.
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+ENTITLEMENTS="${ENTITLEMENTS:-}"
+SIGN_OPTIONS="${SIGN_OPTIONS:-}"
+
   if [ -n "${SIGN_IDENTITY:-}" ]; then
-    echo "Signing canonical artifact with: $SIGN_IDENTITY"
+    echo "Signing canonical artifact with: ${SIGN_IDENTITY}"
     if command -v codesign >/dev/null 2>&1; then
-      codesign --force --deep --sign "$SIGN_IDENTITY" "$CANONICAL" || true
-      echo "codesign details for $CANONICAL:" && /usr/bin/codesign -dvvv "$CANONICAL" 2>&1 || true
+      # compose codesign command supporting optional SIGN_OPTIONS and ENTITLEMENTS
+      read -r -a _sign_opts <<< "${SIGN_OPTIONS}"
+      codesign_cmd=(/usr/bin/codesign --force --deep)
+      if [ ${#_sign_opts[@]} -gt 0 ]; then
+        codesign_cmd+=("${_sign_opts[@]}")
+      fi
+      if [ -n "${ENTITLEMENTS}" ]; then
+        codesign_cmd+=(--entitlements "${ENTITLEMENTS}")
+      fi
+      codesign_cmd+=(--sign "${SIGN_IDENTITY}" "${CANONICAL}")
+
+      # Execute codesign (fail the script if signing fails)
+      "${codesign_cmd[@]}"
+      echo "codesign details for ${CANONICAL}:" && /usr/bin/codesign -dvvv "${CANONICAL}" 2>&1
       if command -v spctl >/dev/null 2>&1; then
-        echo "spctl assessment for $CANONICAL:" && spctl --assess --type execute --verbose "$CANONICAL" 2>&1 || true
+        echo "spctl assessment for ${CANONICAL}:" && spctl --assess --type execute --verbose "${CANONICAL}" 2>&1 || true
       fi
     else
       echo "codesign not available on PATH; skipping signing"

@@ -43,22 +43,22 @@ Tests cover CSV logging behavior (reads, writes, append semantics) and core mana
 - Example: locally building an Intel release on an Intel Mac (produce normalized Ticklet.app inside an arch-specific zip):
 
   ```bash
-  swift build -c release --build-path .build-x86
-  ./scripts/make_app_bundle.sh .build-x86/release/Ticklet ./artifacts/Ticklet-x86_64.app com.thomas.Ticklet
+  swift build -c release --build-path .build-<arch>
+  ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
   # Normalize the .app (remove extended attributes, clear immutable flags, and set permissions)
-  xattr -cr ./artifacts/Ticklet-x86_64.app || true
+  xattr -cr ./artifacts/Ticklet-<arch>.app || true
   # Remove any lingering com.apple.provenance xattr which can persist and trigger Finder errors
-  xattr -dr com.apple.provenance ./artifacts/Ticklet-x86_64.app || true
-  chflags -R nouchg ./artifacts/Ticklet-x86_64.app || true
-  chmod -R u+rwX ./artifacts/Ticklet-x86_64.app
+  xattr -dr com.apple.provenance ./artifacts/Ticklet-<arch>.app || true
+  chflags -R nouchg ./artifacts/Ticklet-<arch>.app || true
+  chmod -R u+rwX ./artifacts/Ticklet-<arch>.app
   # (Optional verification) Check flags and attributes if Finder still complains:
-  # ls -laO ./artifacts/Ticklet-x86_64.app
-  # xattr -lr ./artifacts/Ticklet-x86_64.app
+  # ls -laO ./artifacts/Ticklet-<arch>.app
+  # xattr -lr ./artifacts/Ticklet-<arch>.app
   # Normalize the app folder name inside a staging dir so zips always contain Ticklet.app
-  mkdir -p ./artifacts/staging-x86_64
-  cp -R ./artifacts/Ticklet-x86_64.app ./artifacts/staging-x86_64/Ticklet.app
-  ditto -c -k --sequesterRsrc --keepParent ./artifacts/staging-x86_64/Ticklet.app ./artifacts/Ticklet-x86_64.zip
-  rm -rf ./artifacts/staging-x86_64
+  mkdir -p ./artifacts/staging-<arch>
+  cp -R ./artifacts/<arch>/Ticklet.app ./artifacts/staging-<arch>/Ticklet.app
+  ditto -c -k --sequesterRsrc --keepParent ./artifacts/staging-<arch>/Ticklet.app ./artifacts/Ticklet-<arch>.zip
+  rm -rf ./artifacts/staging-<arch>
   ```
 
 - Install to /Applications (for testing):
@@ -71,11 +71,29 @@ Tests cover CSV logging behavior (reads, writes, append semantics) and core mana
 
 ## Signing & Notarization (for developers)
 
-- For public releases, sign the app with a **Developer ID Application** certificate and notarize it so Gatekeeper and system prompts are consistent for users. Use the packaging helper's `SIGN_IDENTITY` environment variable to sign builds, for example:
+- For public releases, sign the app with a **Developer ID Application** certificate and notarize it so Gatekeeper and system prompts are consistent for users. The packaging helper supports a few signing modes:
+
+  - Default (ad‑hoc, for local testing): if you do **not** set `SIGN_IDENTITY`, the script will perform an ad‑hoc sign (equivalent to `SIGN_IDENTITY="-"`) so the produced `.app` is signed for local testing.
+
+  - Explicit Developer ID (recommended for distribution): set `SIGN_IDENTITY` to your Developer ID identity (example below).
+
+  - Skip signing entirely: set `SIGN_IDENTITY` to an empty string (`SIGN_IDENTITY=""`) to produce an unsigned `.app`.
+
+Use the packaging helper's `SIGN_IDENTITY` environment variable to sign builds, for example:
 
 ```bash
-SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-x86/release/Ticklet ./artifacts/Ticklet-x86_64.app com.thomas.Ticklet
+# Ad-hoc sign (default when SIGN_IDENTITY not provided)
+./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+
+# Explicit Developer ID signing
+SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+
+# Sign with entitlements and extra codesign options (for notarization/hardened runtime)
+ENTITLEMENTS='resources/entitlements.plist' SIGN_OPTIONS='--options runtime --timestamp' \
+  SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
 ```
+
+Note: the script will skip signing if `codesign` is not present on PATH; set `SIGN_IDENTITY` explicitly to `""` to avoid signing even when `codesign` is available.
 
 - Verify signing and Gatekeeper assessment:
 
@@ -89,9 +107,9 @@ spctl --assess --type execute --verbose ./artifacts/Ticklet.app
 - If Finder reports "some items had to be skipped" when moving the app, try these diagnostic and remediation steps in Terminal:
 
   ```bash
-  # Inspect flags and extended attributes
-  ls -laO ./artifacts/Ticklet-x86_64.app
-  xattr -lr ./artifacts/Ticklet-x86_64.app
+  # Inspect flags and extended attributes (replace <arch> with the artifact arch you built)
+  ls -laO ./artifacts/Ticklet-<arch>.app
+  xattr -lr ./artifacts/Ticklet-<arch>.app
 
   # Try removing known attributes and clearing flags
   sudo cp -R ./artifacts/Ticklet.app /Applications/ || true
