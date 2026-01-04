@@ -72,6 +72,33 @@ jobs:
             echo "WARNING: XCTestCore.framework not found; tests may fail to load on this runner"
           fi
 
+      - name: Embed XCTestCore into test bundle (if found)
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          set -e
+          TESTBUNDLE=$(find .build-${{ matrix.arch }} -name '*.xctest' -print -quit || true)
+          if [ -z "$TESTBUNDLE" ]; then
+            echo "No .xctest found under .build-${{ matrix.arch }}; skipping embed"
+            exit 0
+          fi
+          if [ -z "${DYLD_FRAMEWORK_PATH}" ]; then
+            echo "DYLD_FRAMEWORK_PATH not set; XCTestCore location unknown; skipping embed"
+            exit 0
+          fi
+          XCT_PATH="${DYLD_FRAMEWORK_PATH}/XCTestCore.framework"
+          if [ ! -d "$XCT_PATH" ]; then
+            echo "XCTestCore.framework not at $XCT_PATH; searching in /Applications..."
+            FOUND2=$(find /Applications -type d -name "XCTestCore.framework" -maxdepth 4 -print -quit || true)
+            if [ -n "$FOUND2" ]; then XCT_PATH="$FOUND2"; fi
+          fi
+          if [ -d "$XCT_PATH" ]; then
+            echo "Embedding XCTestCore from $XCT_PATH into $TESTBUNDLE/Contents/Frameworks"
+            mkdir -p "$TESTBUNDLE/Contents/Frameworks"
+            cp -R "$XCT_PATH" "$TESTBUNDLE/Contents/Frameworks/"
+          else
+            echo "XCTestCore.framework not found; tests may still fail to dlopen"
+          fi
+
       - name: Run tests
         if: steps.check.outputs.skipping == 'false'
         run: |
