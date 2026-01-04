@@ -33,6 +33,20 @@ jobs:
             echo "skipping=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Select Xcode (ensure XCTest available)
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          # Prefer a recent Xcode (if installed) so XCTestCore is available for swift tests
+          if [ -d /Applications/Xcode_16.4.app ]; then
+            echo "Selecting /Applications/Xcode_16.4.app"
+            sudo xcode-select -s /Applications/Xcode_16.4.app
+            echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> $GITHUB_ENV
+            xcodebuild -version
+          else
+            echo "/Applications/Xcode_16.4.app not found; using system default Xcode"
+            xcodebuild -version || true
+          fi
+
       - name: Build (release)
         if: steps.check.outputs.skipping == 'false'
         run: |
