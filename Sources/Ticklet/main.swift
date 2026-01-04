@@ -69,12 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         accessItem.target = self
         menu.addItem(accessItem)
 
-        // Debug info item to help diagnose permission issues
-        let debugItem = NSMenuItem(title: "Accessibility: Debug Info…", action: #selector(showAccessibilityDebugInfo), keyEquivalent: "")
-        debugItem.target = self
-        menu.addItem(debugItem)
-
-        self.debugMenuItem = debugItem
         self.accessibilityMenuItem = accessItem
 
         let viewLogs = NSMenuItem(title: "View Logs…", action: #selector(openLogsViewer), keyEquivalent: "")
@@ -152,7 +146,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     ai.target = self
                     menu.addItem(ai)
                     self.accessibilityMenuItem = ai
-                    menu.addItem(NSMenuItem(title: "Accessibility: Debug Info…", action: #selector(showAccessibilityDebugInfo), keyEquivalent: ""))
                     menu.addItem(.separator())
                     let viewLogs = NSMenuItem(title: "View Logs…", action: #selector(openLogsViewer), keyEquivalent: "")
                     viewLogs.target = self
@@ -220,7 +213,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var accessibilityMenuItem: NSMenuItem?
-    private var debugMenuItem: NSMenuItem?
 
     private func updateAccessibilityMenuItem() {
         let trusted = AXIsProcessTrusted()
@@ -229,7 +221,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             accessibilityMenuItem?.isHidden = true
             accessibilityMenuItem?.isEnabled = false
             accessibilityMenuItem?.title = "✅ Accessibility: Enabled"
-            debugMenuItem?.isHidden = true
 
             // Hide any visible copy of the accessibility item in the actual menu so it cannot show stale text
             if let first = statusItem?.menu?.items.first {
@@ -244,9 +235,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             accessibilityMenuItem?.title = "⚠️ Accessibility permission required — Enable…"
             accessibilityMenuItem?.isEnabled = true
 
-            // Keep the debug item visible when troubleshooting
-            debugMenuItem?.isHidden = false
-            debugMenuItem?.isEnabled = true
 
             // Ensure the visible first menu item is present and invites enabling
             if let first = statusItem?.menu?.items.first {
@@ -293,29 +281,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func showAccessibilityDebugInfo() {
-        // Gather runtime info to help diagnose why the system might not report the permission
-        let proc = ProcessInfo.processInfo
-        let pid = proc.processIdentifier
-        let name = proc.processName
-        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
-        let execPath = Bundle.main.executableURL?.path ?? "unknown"
-        let trusted = AXIsProcessTrusted()
-
-        // sample list of running applications (name and bundle id)
-        let running = NSWorkspace.shared.runningApplications.prefix(40).map { "\($0.processIdentifier): \($0.localizedName ?? "?") (\($0.bundleIdentifier ?? ""))" }.joined(separator: "\n")
-
-        let msg = "AXIsProcessTrusted: \(trusted)\nPID: \(pid)\nProcessName: \(name)\nBundleID: \(bundleId)\nExecPath: \(execPath)\n\nRunning apps (sample):\n\(running)"
-
-        NSLog("[Ticklet] Accessibility debug:\n\(msg)")
-
-        let alert = NSAlert()
-        alert.messageText = "Accessibility Debug Info"
-        alert.informativeText = msg
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
 
     @objc private func openLogsViewer() {
         guard let logger = logger else { return }
@@ -398,15 +363,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 first.action = #selector(openAccessibilityPreferences)
             }
         }
-
-        // Ensure debug item visibility matches permission state
-        if trusted {
-            debugMenuItem?.isHidden = true
-        } else {
-            debugMenuItem?.isHidden = false
-            debugMenuItem?.isEnabled = true
-        }
-
 
     }
 
