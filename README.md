@@ -1,55 +1,78 @@
 # Ticklet
 
-Ticklet is a lightweight macOS menu bar app that logs the frontmost app and focused window title into daily CSV files so you can answer: "What apps and windows did I spend my time on today, and for how long?"
+Ticklet quietly records which applications and windows you use during the day and saves the results to simple CSV files so you can answer: "What did I spend my time on today?"
 
-This repository follows the project spec in `.github/copilot-instructions.md.md`.
+This README is for end users — concise install and usage instructions are below.
 
-## Build & Run
+---
 
-Requires macOS 15+ and Swift 6+. You can build with SwiftPM or open in Xcode (recommended for AppKit apps).
+## What Ticklet does
 
-- Build with SwiftPM: `swift build`
-- Run in Xcode: open the folder in Xcode and run the `Ticklet` executable target (use a macOS scheme)
-- Run tests locally: `swift test` (CI runs tests on macOS runners)
+- Runs in the background and records the frontmost app and focused window title at short intervals.
+- Saves entries to daily CSV files at: `~/Library/Logs/Ticklet/` (one file per date).
+- Provides a built-in **Logs** viewer for inspecting and navigating days.
 
-⚠️ Accessibility permission: To read window titles you must grant Accessibility permission to the built app in System Settings → Privacy & Security → Accessibility. If the app has no permission, Ticklet will still run but window titles may be empty or truncated.
+---
 
-Debugging as a `.app` bundle (recommended when testing permissions)
+## Privacy & Permissions
 
-If you run the raw executable from Xcode or from SwiftPM's build dir, macOS may not persist Accessibility permissions because the process has no bundle identifier. You can create a minimal `.app` wrapper around the built executable to make permission grants reliable.
+- Ticklet requires **Accessibility** permission to read window titles. Without this permission Ticklet will still run but window titles may be empty or incomplete.
+- Window titles may contain sensitive information (document names, emails, etc.). You should:
+  - Review the data stored in `~/Library/Logs/Ticklet/` and delete files you don’t want to keep
+  - Use the Preferences to disable the status item if you prefer minimal UI
+  - Contact support if you want a data-redaction option (available upon request)
 
-- A helper script is included: `scripts/make_app_bundle.sh`
-- Example usage:
+---
 
-  ```bash
-  # build your executable
-  swift build
+## Install
 
-  # make an app wrapper (adjust paths as needed)
-  ./scripts/make_app_bundle.sh .build/x86_64-apple-macosx/debug/Ticklet ./Ticklet.app com.thomas.Ticklet
+- Preferred: download a prebuilt `.app` from the project's GitHub Releases page (recommended for non‑developers).
+- Alternative (developer): build locally with Swift and use the included bundle helper script to create an `.app` wrapper.
 
-  # double-click ./Ticklet.app, then add it in System Settings → Privacy & Security → Accessibility
-  ```
+If you install from a release, double‑click the `.app` and allow system prompts as needed.
 
-This avoids the "no bundle identifier" issue when granting Accessibility permissions.
+---
 
-App bundle & UI mode
+## Granting Accessibility permission
 
-Ticklet now runs as a regular macOS app (Dock + app menu) and also provides an optional status item in the menu bar. Use the Preferences window (App menu → Preferences…) to toggle whether the status item is shown in the menu bar. This mode is recommended for development and production so Accessibility permissions behave correctly.
+1. Launch Ticklet (double‑click the app in Finder).
+2. Open **System Settings → Privacy & Security → Accessibility**.
+3. Click the **+** button and add **Ticklet.app**, then ensure the checkbox next to it is enabled.
+4. Quit and re-open Ticklet (or log out and log back in) so the permission takes effect.
 
-## Packaging & Release
+When Accessibility is enabled, Ticklet will be able to read window titles and produce richer logs.
 
-- Build a Release configuration in Xcode and export a signed `.app` or `.dmg`.
-- Code sign with your Developer ID when creating distributable builds.
-- Recommended distribution: GitHub Releases with a signed `.dmg` attached (include SHA256 checksum and release notes).
+---
 
-For a reproducible release, prefer building on an ARM and Intel machine or build universal binary with `lipo`/`xcodebuild` to combine slices.
+## Using the app
 
-## Current status
+- Menu Bar: Ticklet can run with an optional status item (icon) — toggle this in Preferences.
+- Logs Viewer: choose **View Logs…** from the Ticklet menu to open the Log Viewer window.
+  - Use the date controls (Back / Forward / Today) to navigate days.
+  - Click column headers to sort entries; sorting is remembered.
+  - Window position and size are remembered between launches.
+- Logs are stored as CSV; each row includes start time, end time, duration (seconds), app name, and window title.
 
-- Project scaffold created
-- Core model (`ActivityEntry`) and `CSVLogger` implemented
-- `ActivityTracker` stub created (AX and idle logic to be implemented)
-- Basic unit tests added for CSV escaping and duration
+---
 
-Next: implement the accessibility polling, debouncing and idle detection, wire the tracker to the CSVLogger, add menu bar UI and a log viewer window.
+## Troubleshooting
+
+- If logs are empty or missing titles: verify Accessibility permission and restart the app.
+- If Ticklet doesn’t appear in Accessibility list: use Finder to open the `.app` once (this registers it with Launch Services), then add it in System Settings.
+- If the app behaves oddly after granting permission, quit it and re-open it from Finder.
+
+---
+
+## Support & Feedback
+
+- Found a bug or want a feature (redaction, retention rules, or compacting logs)? Open an issue on the GitHub repo or email the maintainer.
+
+---
+
+## License
+
+Ticklet is open source — see the repository license for details.
+
+---
+
+If you prefer a developer-oriented README (build & test instructions), see the `DEVELOPER.md` file in this repo.
