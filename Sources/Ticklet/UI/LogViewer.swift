@@ -229,7 +229,7 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
             text = s.string(from: e.startTime)
         } else if id == "duration" {
             if let d = e.durationSeconds {
-                text = String(Int(d))
+                text = formatDuration(Int(d))
             } else {
                 text = ""
             }
@@ -294,6 +294,20 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
     }
 
     // MARK: - App icon helpers
+
+    private func formatDuration(_ seconds: Int) -> String {
+        var s = seconds
+        if s < 0 { s = 0 }
+        let hours = s / 3600
+        let minutes = (s % 3600) / 60
+        let secs = s % 60
+        var parts: [String] = []
+        if hours > 0 { parts.append("\(hours)h") }
+        if minutes > 0 { parts.append("\(minutes)m") }
+        if secs > 0 { parts.append("\(secs)s") }
+        if parts.isEmpty { return "0s" }
+        return parts.joined(separator: " ")
+    }
 
     private func appIcon(for appName: String) -> NSImage {
         if let cached = appIconCache[appName] { return cached }
