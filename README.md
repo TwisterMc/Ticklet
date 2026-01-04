@@ -66,6 +66,13 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
 - If Ticklet doesn’t appear in Accessibility list: use Finder to open the `.app` once (this registers it with Launch Services), then add it in System Settings.
 - If the app behaves oddly after granting permission, quit it and re-open it from Finder.
 
+### App Permissions & Security
+
+- When you install Ticklet, macOS may ask you to grant Accessibility permission so the app can read window titles — this is normal. Follow the steps under **Granting Accessibility permission** above to enable it.
+- If Ticklet asks for permission again after an update, open it from your **Applications** folder and re-enable the permission; if prompts continue, download the official build from the project's Releases page or contact the maintainer for help.
+
+(Developer note: More technical signing and notarization guidance is available in `DEVELOPER.md`.)
+
 ---
 
 ## Support & Feedback

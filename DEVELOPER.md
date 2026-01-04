@@ -69,6 +69,23 @@ Tests cover CSV logging behavior (reads, writes, append semantics) and core mana
   codesign --force --deep --sign - /Applications/Ticklet.app
   ```
 
+## Signing & Notarization (for developers)
+
+- For public releases, sign the app with a **Developer ID Application** certificate and notarize it so Gatekeeper and system prompts are consistent for users. Use the packaging helper's `SIGN_IDENTITY` environment variable to sign builds, for example:
+
+```bash
+SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-x86/release/Ticklet ./artifacts/Ticklet-x86_64.app com.thomas.Ticklet
+```
+
+- Verify signing and Gatekeeper assessment:
+
+```bash
+codesign -dvvv ./artifacts/Ticklet.app
+spctl --assess --type execute --verbose ./artifacts/Ticklet.app
+```
+
+- For CI, ensure the signing key is available on the runner and submit notarization jobs as part of your release workflow.
+
 - If Finder reports "some items had to be skipped" when moving the app, try these diagnostic and remediation steps in Terminal:
 
   ```bash
