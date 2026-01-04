@@ -141,10 +141,19 @@ jobs:
           ls -la "$TESTBUNDLE/Contents/Frameworks" || true
           echo "Done"
 
+      - name: Test diagnostics
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          echo "xcode-select: $(xcode-select -p || echo '(none)')"
+          xcodebuild -version || true
+          swift --version || true
+          echo "Searching for XCTestCore.framework..."
+          find /Applications -type d -name XCTestCore.framework -print -quit || true
+
       - name: Run tests
         if: steps.check.outputs.skipping == 'false'
         run: |
-          swift test -v
+          swift test --parallel -v
 
       - name: Build (release)
         if: steps.check.outputs.skipping == 'false'
