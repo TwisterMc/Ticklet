@@ -47,6 +47,36 @@ jobs:
             xcodebuild -version || true
           fi
 
+      - name: Locate XCTestCore and set DYLD_FRAMEWORK_PATH
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          set -e
+          POSSIBLE=(
+            "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTestCore.framework"
+            "/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTestCore.framework"
+            "$(xcode-select -p)/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTestCore.framework"
+          )
+          FOUND=""
+          for p in "${POSSIBLE[@]}"; do
+            if [ -d "$p" ]; then FOUND="$p"; break; fi
+          done
+          if [ -z "$FOUND" ]; then
+            echo "XCTestCore not found in standard locations; searching /Applications..."
+            FOUND=$(find /Applications -type d -name XCTestCore.framework -maxdepth 4 -print -quit || true)
+          fi
+          if [ -n "$FOUND" ]; then
+            DIR=$(dirname "$FOUND")
+            echo "Found XCTestCore at $FOUND; exporting DYLD_FRAMEWORK_PATH=$DIR"
+            echo "DYLD_FRAMEWORK_PATH=$DIR" >> $GITHUB_ENV
+          else
+            echo "WARNING: XCTestCore.framework not found; tests may fail to load on this runner"
+          fi
+
+      - name: Run tests
+        if: steps.check.outputs.skipping == 'false'
+        run: |
+          swift test -v
+
       - name: Build (release)
         if: steps.check.outputs.skipping == 'false'
         run: |
