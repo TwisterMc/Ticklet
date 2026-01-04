@@ -21,7 +21,7 @@ public final class ActivityManager {
         tracker.onEntryFinalized = { [weak self] entry in
             // Ensure we invoke the handler on the MainActor since ActivityManager is @MainActor
             Task { @MainActor in
-                self?.handleFinalized(entry)
+                await self?.handleFinalized(entry)
             }
         }
     }
@@ -40,7 +40,7 @@ public final class ActivityManager {
         return fileDateFormatter.string(from: date)
     }
 
-    func handleFinalized(_ entry: ActivityEntry) {
+    @MainActor func handleFinalized(_ entry: ActivityEntry) {
         let key = dateKey(for: entry.startTime)
 
         // Append to in-memory list
