@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.0.0). If omitted a draft with run id is used.'
+        description: "Release tag (e.g. v1.0.0). If omitted a draft with run id is used."
         required: false
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
       - name: Install Swift
         uses: fwal/setup-swift@v2
         with:
-          swift-version: '6.0'
+          swift-version: "6.0"
 
       - name: Check runner architecture
         id: check
