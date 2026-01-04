@@ -11,6 +11,9 @@ DerivedData/
 
 # SwiftPM
 .build/
+# Architecture-specific build output directories created during local builds
+# Examples: .build-x86 (Intel), .build-arm64 (Apple Silicon)
+.build-*
 
 # Artifacts and generated bundles
 artifacts/
