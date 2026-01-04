@@ -142,21 +142,39 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check release artifacts
+        id: check_assets
+        run: |
+          X86_PATH=""
+          ARM_PATH=""
+          if [ -f ./downloads/x86_64/Ticklet-x86_64.zip ]; then
+            X86_PATH="./downloads/x86_64/Ticklet-x86_64.zip"
+          elif [ -f ./artifacts/Ticklet-x86_64.zip ]; then
+            X86_PATH="./artifacts/Ticklet-x86_64.zip"
+          fi
+          if [ -f ./downloads/arm64/Ticklet-arm64.zip ]; then
+            ARM_PATH="./downloads/arm64/Ticklet-arm64.zip"
+          elif [ -f ./artifacts/Ticklet-arm64.zip ]; then
+            ARM_PATH="./artifacts/Ticklet-arm64.zip"
+          fi
+          echo "x86_path=$X86_PATH" >> $GITHUB_OUTPUT
+          echo "arm_path=$ARM_PATH" >> $GITHUB_OUTPUT
+
       - name: Upload x86_64 asset (if present)
-        if: ${{ contains( steps.create_release.outputs.upload_url || '', 'https' ) && (file_exists('./downloads/x86_64/Ticklet-x86_64.zip') || file_exists('./artifacts/Ticklet-x86_64.zip')) }}
+        if: ${{ contains( steps.create_release.outputs.upload_url || '', 'https' ) && steps.check_assets.outputs.x86_path != '' }}
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./downloads/x86_64/Ticklet-x86_64.zip
+          asset_path: ${{ steps.check_assets.outputs.x86_path }}
           asset_name: Ticklet-x86_64.zip
           asset_content_type: application/zip
 
       - name: Upload arm64 asset (if present)
-        if: ${{ contains( steps.create_release.outputs.upload_url || '', 'https' ) && (file_exists('./downloads/arm64/Ticklet-arm64.zip') || file_exists('./artifacts/Ticklet-arm64.zip')) }}
+        if: ${{ contains( steps.create_release.outputs.upload_url || '', 'https' ) && steps.check_assets.outputs.arm_path != '' }}
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./downloads/arm64/Ticklet-arm64.zip
+          asset_path: ${{ steps.check_assets.outputs.arm_path }}
           asset_name: Ticklet-arm64.zip
           asset_content_type: application/zip
 
