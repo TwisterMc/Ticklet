@@ -9,6 +9,11 @@ EXEC_PATH="$1"
 OUT_APP_PATH="${2:-./Ticklet.app}"
 BUNDLE_ID="${3:-com.yourname.Ticklet}"
 ICON_PATH="${4:-}"
+# If no icon path is provided, prefer the repo asset at Assets/AppIcon.icns if it exists
+if [ -z "$ICON_PATH" ] && [ -f "./Assets/AppIcon.icns" ]; then
+  ICON_PATH="./Assets/AppIcon.icns"
+  echo "Using repository icon: $ICON_PATH"
+fi
 
 if [ ! -f "$EXEC_PATH" ]; then
   echo "Executable not found: $EXEC_PATH" >&2
