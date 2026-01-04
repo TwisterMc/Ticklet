@@ -11,6 +11,7 @@ public final class ActivityTracker {
     public var onEntryFinalized: ((ActivityEntry) -> Void)?
 
     private var timer: Timer?
+    private var eventMonitor: Any?
     private var currentEntry: ActivityEntry?
 
     // pending observation that's waiting to become stable
@@ -31,16 +32,14 @@ public final class ActivityTracker {
         // start must be called from the main thread / main actor
         precondition(Thread.isMainThread, "ActivityTracker.start() must be called on the main thread")
 
-        // Use the closure-based timer to avoid selector/target data-race warnings
-        let t = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
-            self?.tick()
-        }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+        // Schedule the timer
+        scheduleTimer()
 
-        // Also monitor for user input to update `lastUserActivity` so idle detection works
-        NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] _ in
-            self?.lastUserActivity = self?.now() ?? Date()
+        // Only add the global event monitor once
+        if eventMonitor == nil {
+            eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] _ in
+                self?.lastUserActivity = self?.now() ?? Date()
+            }
         }
 
         // Initialize current entry based on current frontmost app
@@ -52,6 +51,27 @@ public final class ActivityTracker {
     public func stop() {
         timer?.invalidate()
         timer = nil
+        if let m = eventMonitor {
+            NSEvent.removeMonitor(m)
+            eventMonitor = nil
+        }
+    }
+
+    private func scheduleTimer() {
+        timer?.invalidate()
+        let t = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    /// Update the poll interval at runtime. If the tracker is running this will reschedule the timer.
+    public func setPollInterval(_ seconds: TimeInterval) {
+        pollInterval = seconds
+        if timer != nil {
+            scheduleTimer()
+        }
     }
 
     // Public method useful for tests: observe an incoming state at a given time

@@ -48,6 +48,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Use NSWindow.performClose: so the key window will close
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
 
+        // View menu (Reload logs shortcut)
+        let viewMenuItem = NSMenuItem()
+        mainMenu.addItem(viewMenuItem)
+        let viewMenu = NSMenu(title: "View")
+        viewMenuItem.submenu = viewMenu
+        let reloadItem = NSMenuItem(title: "Reload Logs", action: #selector(reloadLogs), keyEquivalent: "r")
+        reloadItem.target = self
+        // Ensure it's Cmd-R
+        reloadItem.keyEquivalentModifierMask = [.command]
+        viewMenu.addItem(reloadItem)
+
         NSApp.mainMenu = mainMenu
 
         // Status/menu for the status item (keeps existing items)
@@ -90,6 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         do {
             logger = try CSVLogger()
             tracker = ActivityTracker()
+            // Apply user-configured poll interval (seconds) if present
+            let savedInterval = UserDefaults.standard.double(forKey: "pollIntervalSeconds")
+            if savedInterval > 0 {
+                tracker?.setPollInterval(savedInterval)
+            }
             manager = ActivityManager(logger: logger!, tracker: tracker!)
             tracker?.start()
 
@@ -117,6 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // Preferences
     private var preferencesWindowController: PreferencesWindowController?
+    private var logViewerWindowController: LogViewerWindowController?
     var showStatusItem: Bool = true {
         didSet {
             UserDefaults.standard.set(showStatusItem, forKey: "showStatusItem")
@@ -293,12 +310,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openLogsViewer() {
         guard let logger = logger else { return }
-        let vc = LogViewerWindowController(logger: logger)
-        vc.showWindow(nil)
-        vc.window?.makeKeyAndOrderFront(nil)
+        // Reuse existing window controller if present
+        if let existing = logViewerWindowController {
+            existing.showWindow(nil)
+            existing.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            let vc = LogViewerWindowController(logger: logger)
+            logViewerWindowController = vc
+            vc.showWindow(nil)
+            vc.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         // Refresh accessibility status when the user opens the logs menu/view
         updateAccessibilityMenuItem()
+    }
+
+    /// Called by `LogViewerWindowController` when the window closes so the AppDelegate can release its reference
+    func logViewerDidClose(_ controller: LogViewerWindowController) {
+        if logViewerWindowController === controller {
+            logViewerWindowController = nil
+        }
+    }
+
+    @objc private func reloadLogs() {
+        // If the log viewer is open, tell it to refresh; otherwise open, then refresh
+        if let existing = logViewerWindowController {
+            existing.refresh()
+            existing.showWindow(nil)
+            existing.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else if let logger = logger {
+            let vc = LogViewerWindowController(logger: logger)
+            logViewerWindowController = vc
+            vc.showWindow(nil)
+            vc.window?.makeKeyAndOrderFront(nil)
+            vc.refresh()
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     @objc private func openPreferences() {

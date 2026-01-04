@@ -47,9 +47,12 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
 ## Using the app
 
 - Menu Bar: Ticklet can run with an optional status item (icon) — toggle this in Preferences.
+- Sampling interval: set the recording interval (seconds) in **Preferences** — default is 1 second (supported range: 1–60). Higher frequency produces more detailed logs but may increase disk usage and CPU.
 - Logs Viewer: choose **View Logs…** from the Ticklet menu to open the Log Viewer window.
   - Use the date controls (Back / Forward / Today) to navigate days.
   - Click column headers to sort entries; sorting is remembered.
+  - Use the **Refresh** button to reload the current day's logs, or press **⌘R** (Reload Logs) — it performs the same refresh action.
+  - When you open **View Logs…**, Ticklet activates and the Log Viewer window is brought to the front.
   - Window position and size are remembered between launches.
 - Logs are stored as CSV; each row includes start time, end time, duration (seconds), app name, and window title.
 

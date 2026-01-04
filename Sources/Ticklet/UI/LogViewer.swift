@@ -7,6 +7,7 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
     private let backButton = NSButton()
     private let forwardButton = NSButton()
     private let todayButton = NSButton(title: "Today", target: nil, action: nil)
+    private let refreshButton = NSButton()
     private var entries: [ActivityEntry] = []
     private let logger: CSVLogger
     private let frameDefaultsKey = "LogViewerWindowFrame"
@@ -115,6 +116,17 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
         datePicker.dateValue = Date()
         content.addSubview(datePicker)
 
+        // Refresh button to reload current day's logs
+        refreshButton.title = "Refresh"
+        refreshButton.setButtonType(.momentaryPushIn)
+        refreshButton.bezelStyle = .rounded
+        refreshButton.frame = NSRect(x: content.bounds.width - 90, y: content.bounds.height - 40, width: 80, height: 24)
+        refreshButton.autoresizingMask = [.minYMargin, .minXMargin]
+        refreshButton.target = self
+        refreshButton.action = #selector(refreshLogs)
+        refreshButton.toolTip = "Reload logs for selected date"
+        content.addSubview(refreshButton)
+
         scroll.documentView = tableView
         scroll.hasVerticalScroller = true
         scroll.frame = NSRect(x: 10, y: 10, width: content.bounds.width - 20, height: content.bounds.height - 60)
@@ -162,6 +174,15 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
 
     @objc private func dateChanged() {
         load(date: datePicker.dateValue)
+    }
+
+    @objc private func refreshLogs() {
+        load(date: datePicker.dateValue, recordHistory: false)
+    }
+
+    /// Public refresh entry point (usable from menu actions)
+    @objc public func refresh() {
+        refreshLogs()
     }
 
     public func load(date: Date, recordHistory: Bool = true) {
@@ -347,6 +368,9 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
 
     public func windowWillClose(_ notification: Notification) {
         saveWindowFrame()
+        if let app = NSApp.delegate as? AppDelegate {
+            app.logViewerDidClose(self)
+        }
     }
 
     public func windowDidMove(_ notification: Notification) {
