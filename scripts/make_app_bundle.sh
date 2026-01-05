@@ -127,6 +127,27 @@ SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 ENTITLEMENTS="${ENTITLEMENTS:-}"
 SIGN_OPTIONS="${SIGN_OPTIONS:-}"
 
+# Sign the original output if signing is enabled
+if [ -n "${SIGN_IDENTITY}" ]; then
+  echo "Signing $OUT_APP_PATH with: ${SIGN_IDENTITY}"
+  if command -v codesign >/dev/null 2>&1; then
+    read -r -a _sign_opts <<< "${SIGN_OPTIONS}"
+    codesign_cmd=(/usr/bin/codesign --force --deep)
+    if [ ${#_sign_opts[@]} -gt 0 ]; then
+      codesign_cmd+=("${_sign_opts[@]}")
+    fi
+    if [ -n "${ENTITLEMENTS}" ]; then
+      codesign_cmd+=(--entitlements "${ENTITLEMENTS}")
+    fi
+    codesign_cmd+=(--sign "${SIGN_IDENTITY}" "${OUT_APP_PATH}")
+    
+    "${codesign_cmd[@]}"
+    echo "Signed: $OUT_APP_PATH"
+  else
+    echo "Warning: codesign not available; skipping signing"
+  fi
+fi
+
 # If the output is created inside ./artifacts and has an arch suffix (e.g. Ticklet-<arch>.app),
 # create a canonical ./artifacts/Ticklet.app copy so install instructions can be run reliably.
 OUT_DIR=$(dirname "$OUT_APP_PATH")

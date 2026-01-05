@@ -20,15 +20,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Log startup for debugging
         NSLog("[Ticklet] applicationDidFinishLaunching")
 
-        // Optional launch alert when env var is set (useful for debugging runs from Terminal/Xcode)
-        if ProcessInfo.processInfo.environment["TICKLET_SHOW_LAUNCH_ALERT"] != nil {
-            let alert = NSAlert()
-            alert.messageText = "Ticklet launched"
-            alert.informativeText = "PID: \(ProcessInfo.processInfo.processIdentifier) — check console for logs"
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-
         // Run as a regular macOS app (Dock + app menu)
         NSApp.setActivationPolicy(.regular)
 
@@ -99,6 +90,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.showStatusItem = show
         if show {
             createStatusItem(with: menu)
+        }
+
+        // Check accessibility permission and notify user if needed
+        let hasAccessibility = AXIsProcessTrusted()
+        if !hasAccessibility {
+            // Show a user-friendly alert about needing Accessibility permission
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                let alert = NSAlert()
+                alert.messageText = "Accessibility Permission Required"
+                alert.informativeText = "Ticklet needs Accessibility permission to track window titles.\n\nClick OK to open System Settings, then:\n1. Click the + button\n2. Add Ticklet.app\n3. Enable the checkbox\n4. Restart Ticklet\n\nNote: After each app update, you'll need to re-authorize Ticklet."
+                alert.alertStyle = .informational
+                alert.addButton(withTitle: "Open System Settings")
+                alert.addButton(withTitle: "Later")
+                
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    // Open System Settings to Accessibility
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
         }
 
         // initialize tracker, logger, and UI

@@ -42,6 +42,13 @@ If you install from a release, double‑click the `.app` and allow system prompt
 
 When Accessibility is enabled, Ticklet will be able to read window titles and produce richer logs.
 
+**⚠️ Important Note About Updates:**
+
+- If you build/download a new version of Ticklet, macOS will treat it as a different app
+- You'll need to re-authorize Accessibility permissions for each new build
+- This is because the app uses ad-hoc signing (code signature changes with each build)
+- To avoid this: install Ticklet to a fixed location (e.g., `/Applications/Ticklet.app`) and always replace the same file when updating
+
 ---
 
 ## Using the app
