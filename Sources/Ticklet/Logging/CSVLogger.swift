@@ -1,15 +1,15 @@
 import Foundation
 
-public final class CSVLogger: LogWriter {
+final class CSVLogger: LogWriter {
     private let directory: URL
 
     /// Exposed for UI actions (Open Logs Folder)
-    public var logsDirectory: URL { directory }
+    var logsDirectory: URL { directory }
     private let fileDateFormatter: DateFormatter
     private let lineDateFormatter: DateFormatter
     private let fileManager = FileManager.default
 
-    public init(logsDirectory: URL? = nil) throws {
+    init(logsDirectory: URL? = nil) throws {
         if let dir = logsDirectory {
             directory = dir
         } else {
@@ -26,7 +26,7 @@ public final class CSVLogger: LogWriter {
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
-    public func write(entries: [ActivityEntry], for date: Date) throws {
+    func write(entries: [ActivityEntry], for date: Date) throws {
         let filename = "ticklet-\(fileDateFormatter.string(from: date)).csv"
         let fileURL = directory.appendingPathComponent(filename)
 
@@ -45,7 +45,7 @@ public final class CSVLogger: LogWriter {
     }
 
     // Append entries to existing CSV file safely. Creates the file with header if missing.
-    public func append(entries: [ActivityEntry], for date: Date) throws {
+    func append(entries: [ActivityEntry], for date: Date) throws {
         let filename = "ticklet-\(fileDateFormatter.string(from: date)).csv"
         let fileURL = directory.appendingPathComponent(filename)
 
@@ -79,7 +79,7 @@ public final class CSVLogger: LogWriter {
         }
     }
 
-    public func readEntries(for date: Date) throws -> [ActivityEntry] {
+    func readEntries(for date: Date) throws -> [ActivityEntry] {
         let filename = "ticklet-\(fileDateFormatter.string(from: date)).csv"
         let fileURL = directory.appendingPathComponent(filename)
         let data = try String(contentsOf: fileURL, encoding: .utf8)

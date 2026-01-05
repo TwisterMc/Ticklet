@@ -1,13 +1,13 @@
 import AppKit
 
-public final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
+final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let checkbox = NSButton(checkboxWithTitle: "Show status item in menu bar", target: nil, action: nil)
     private let pollLabel = NSTextField(labelWithString: "Sampling interval (seconds):")
     private let pollField = NSTextField(string: "")
     private let pollStepper = NSStepper()
     private let frameDefaultsKey = "PreferencesWindowFrame"
 
-    public init() {
+    init() {
         let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 120)
         let window = NSWindow(contentRect: defaultRect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)

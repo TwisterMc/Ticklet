@@ -1,6 +1,13 @@
 import AppKit
 import ApplicationServices
 
+/// Helper to get app display name from bundle info, preferring CFBundleDisplayName over executable name
+private func bundleDisplayName() -> String {
+    return (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+        ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String)
+        ?? ProcessInfo.processInfo.processName
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem?
@@ -29,9 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Prefer a user-facing name from Info.plist (CFBundleDisplayName) or the bundle's executable name
         // This avoids showing build artifact names like "Ticklet-<arch>" when an arch‑specific
         // app bundle is used. Fall back to ProcessInfo if needed.
-        let appName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
-            ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String)
-            ?? ProcessInfo.processInfo.processName
+        let appName = bundleDisplayName()
         let mainMenu = NSMenu()
 
         // App menu

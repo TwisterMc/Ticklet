@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-public final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
+final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     private let tableView = NSTableView()
     private let scroll = NSScrollView()
     private let datePicker = NSDatePicker()
@@ -21,7 +21,7 @@ public final class LogViewerWindowController: NSWindowController, NSTableViewDat
     private var history: [Date] = []
     private var historyIndex: Int = -1
 
-    public init(logger: CSVLogger) {
+    init(logger: CSVLogger) {
         self.logger = logger
         let defaultRect = NSRect(x: 0, y: 0, width: 800, height: 600)
         let window = NSWindow(contentRect: defaultRect, styleMask: [.titled, .resizable, .closable], backing: .buffered, defer: false)

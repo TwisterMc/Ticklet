@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-public final class ActivityManager {
+final class ActivityManager {
     private let logger: LogWriter
     private let tracker: ActivityTracker
     private let calendar: Calendar
@@ -9,7 +9,7 @@ public final class ActivityManager {
     private let fileDateFormatter: DateFormatter
     private let now: () -> Date
 
-    public init(logger: LogWriter, tracker: ActivityTracker, calendar: Calendar = .current, now: @escaping () -> Date = { Date() }) {
+    init(logger: LogWriter, tracker: ActivityTracker, calendar: Calendar = .current, now: @escaping () -> Date = { Date() }) {
         self.logger = logger
         self.tracker = tracker
         self.calendar = calendar
@@ -26,11 +26,11 @@ public final class ActivityManager {
         }
     }
 
-    public func start() {
+    func start() {
         tracker.start()
     }
 
-    public func stop() {
+    func stop() {
         tracker.stop()
         // flush today's entries
         flushAll() // best-effort
@@ -58,7 +58,7 @@ public final class ActivityManager {
         NotificationCenter.default.post(name: .tickletEntryFinalized, object: entry)
     }
 
-    public func flushAll() {
+    func flushAll() {
         for (key, list) in entriesByDate {
             guard let date = fileDateFormatter.date(from: key) else { continue }
 

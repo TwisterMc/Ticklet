@@ -2,14 +2,14 @@ import Foundation
 import AppKit
 
 @MainActor
-public final class ActivityTracker {
-    public var pollInterval: TimeInterval = 1.0
-    public var debounceWindow: TimeInterval = 3.0
-    public var minEntryDuration: TimeInterval = 3.0
-    public var idleThreshold: TimeInterval = 300.0 // 5 minutes
+final class ActivityTracker {
+    var pollInterval: TimeInterval = 1.0
+    var debounceWindow: TimeInterval = 3.0
+    var minEntryDuration: TimeInterval = 3.0
+    var idleThreshold: TimeInterval = 300.0 // 5 minutes
 
     // Callbacks
-    public var onEntryFinalized: ((ActivityEntry) -> Void)?
+    var onEntryFinalized: ((ActivityEntry) -> Void)?
 
     private var timer: Timer?
     private var eventMonitor: Any?
@@ -24,12 +24,12 @@ public final class ActivityTracker {
     // for testability, inject a clock
     private let now: () -> Date
 
-    public init(now: @escaping () -> Date = { Date() }) {
+    init(now: @escaping () -> Date = { Date() }) {
         self.now = now
 
     }
 
-    public func start() {
+    func start() {
         // start must be called from the main thread / main actor
         precondition(Thread.isMainThread, "ActivityTracker.start() must be called on the main thread")
 
@@ -49,7 +49,7 @@ public final class ActivityTracker {
         }
     }
 
-    public func stop() {
+    func stop() {
         timer?.invalidate()
         timer = nil
         if let m = eventMonitor {
@@ -71,15 +71,15 @@ public final class ActivityTracker {
     }
 
     /// Update the poll interval at runtime. If the tracker is running this will reschedule the timer.
-    public func setPollInterval(_ seconds: TimeInterval) {
+    func setPollInterval(_ seconds: TimeInterval) {
         pollInterval = seconds
         if timer != nil {
             scheduleTimer()
         }
     }
 
-    // Public method useful for tests: observe an incoming state at a given time
-    public func observe(app: String, windowTitle: String, at time: Date) {
+    // Method useful for tests: observe an incoming state at a given time
+    func observe(app: String, windowTitle: String, at time: Date) {
         lastUserActivity = time
 
         // If we don't have a current entry yet, start one immediately
@@ -128,7 +128,7 @@ public final class ActivityTracker {
         }
     }
 
-    @MainActor @objc func tick() {
+    @MainActor func tick() {
         let t = now()
 
         // Idle detection
