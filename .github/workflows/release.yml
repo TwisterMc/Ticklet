@@ -14,7 +14,9 @@ jobs:
   build:
     name: Build per-arch
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
+      fail-fast: true
       matrix:
         include:
           - arch: x86_64
@@ -24,7 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check runner architecture
+      - name: Cache Swift build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-${{ matrix.arch }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-spm-
         id: check
         run: |
           echo "runner=$(uname -m)"
@@ -58,14 +68,20 @@ jobs:
             echo "Proceeding without switching Xcode; tests may fail if XCTestCore is missing"
           fi
 
-      - name: Build tests (explicit build path)
+      - name: Verify Swift environment
         if: steps.check.outputs.skipping == 'false'
         run: |
-          swift build --build-path .build-${{ matrix.arch }}
+          echo "TOOLCHAINS=${TOOLCHAINS:-not set}"
+          echo "DEVELOPER_DIR=${DEVELOPER_DIR:-not set}"
+          echo "xcode-select: $(xcode-select -p)"
+          echo "which swift: $(which swift)"
+          swift --version
 
       - name: Run tests
         if: steps.check.outputs.skipping == 'false'
         run: |
+          # Unset TOOLCHAINS to ensure we use system Xcode Swift (not standalone toolchain)
+          unset TOOLCHAINS
           # Use default build location to avoid swiftpm_testing_helper XCTestCore issues
           swift test --parallel -v
 
@@ -197,7 +213,6 @@ jobs:
           prerelease: true
           files: |
             ./downloads/*/Ticklet-*.zip
-            ./artifacts/Ticklet-*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
