@@ -68,19 +68,22 @@ jobs:
             "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTestCore.framework"
             "/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTestCore.framework"
             "$(xcode-select -p)/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTestCore.framework"
+            "/Users/runner/hostedtoolcache/swift-macOS/6.0.3/arm64/usr/lib/swift/macosx/testing/XCTestCore.framework"
+            "/Users/runner/hostedtoolcache/swift-macOS/6.0.3/x86_64/usr/lib/swift/macosx/testing/XCTestCore.framework"
           )
           FOUND=""
           for p in "${POSSIBLE[@]}"; do
             if [ -d "$p" ]; then FOUND="$p"; break; fi
           done
           if [ -z "$FOUND" ]; then
-            echo "XCTestCore not found in standard locations; searching /Applications..."
-            FOUND=$(find /Applications -type d -name XCTestCore.framework -maxdepth 4 -print -quit || true)
+            echo "XCTestCore not found in standard locations; searching /Applications and hostedtoolcache..."
+            FOUND=$(find /Applications /Users/runner/hostedtoolcache -type d -name XCTestCore.framework -maxdepth 6 -print -quit 2>/dev/null || true)
           fi
           if [ -n "$FOUND" ]; then
             DIR=$(dirname "$FOUND")
-            echo "Found XCTestCore at $FOUND; exporting DYLD_FRAMEWORK_PATH=$DIR"
+            echo "Found XCTestCore at $FOUND; setting framework paths"
             echo "DYLD_FRAMEWORK_PATH=$DIR" >> $GITHUB_ENV
+            echo "DYLD_FALLBACK_FRAMEWORK_PATH=$DIR" >> $GITHUB_ENV
           else
             echo "WARNING: XCTestCore.framework not found; tests may fail to load on this runner"
           fi
@@ -164,6 +167,9 @@ jobs:
 
       - name: Run tests
         if: steps.check.outputs.skipping == 'false'
+        env:
+          DYLD_FRAMEWORK_PATH: ${{ env.DYLD_FRAMEWORK_PATH }}
+          DYLD_FALLBACK_FRAMEWORK_PATH: ${{ env.DYLD_FALLBACK_FRAMEWORK_PATH }}
         run: |
           swift test --build-path .build-${{ matrix.arch }} --parallel -v
 
