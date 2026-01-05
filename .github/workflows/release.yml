@@ -13,14 +13,10 @@ permissions:
 jobs:
   build:
     name: Build per-arch
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-15
     strategy:
       matrix:
-        include:
-          - arch: x86_64
-            os: macos-13
-          - arch: arm64
-            os: macos-15
+        arch: [x86_64, arm64]
     steps:
       - uses: actions/checkout@v4
 
