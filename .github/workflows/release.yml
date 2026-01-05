@@ -47,11 +47,13 @@ jobs:
             echo "Selecting /Applications/Xcode.app"
             sudo xcode-select -s /Applications/Xcode.app
             echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> $GITHUB_ENV
+            echo "PATH=$(xcode-select -p)/usr/bin:$PATH" >> $GITHUB_ENV
             xcodebuild -version
           elif [ -d /Applications/Xcode_16.4.app ]; then
             echo "/Applications/Xcode.app not found; falling back to /Applications/Xcode_16.4.app"
             sudo xcode-select -s /Applications/Xcode_16.4.app
             echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> $GITHUB_ENV
+            echo "PATH=$(xcode-select -p)/usr/bin:$PATH" >> $GITHUB_ENV
             xcodebuild -version
           else
             echo "No known Xcode found under /Applications. Current xcode-select path: $(xcode-select -p || echo '(none)')"
@@ -186,6 +188,7 @@ jobs:
           EXEC=$(find .build-${{ matrix.arch }} -type f -name Ticklet -path "*release*" -print -quit)
           if [ -z "$EXEC" ]; then echo "Executable not found"; exit 1; fi
           mkdir -p ./artifacts
+
           # Create an arch-specific temp app bundle
           TMP_DIR=./artifacts/${{ matrix.arch }}
           mkdir -p "$TMP_DIR"
