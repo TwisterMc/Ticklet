@@ -13,10 +13,14 @@ permissions:
 jobs:
   build:
     name: Build per-arch
-    runs-on: macos-15
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        arch: [x86_64, arm64]
+        include:
+          - arch: x86_64
+            os: macos-14
+          - arch: arm64
+            os: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -61,11 +65,9 @@ jobs:
 
       - name: Run tests
         if: steps.check.outputs.skipping == 'false'
-        continue-on-error: true
         run: |
-          # Note: Tests pass (8/8) but cleanup may fail due to missing XCTestCore on macos-15 runner
-          # Using || true to ensure step succeeds even if cleanup fails
-          swift test --build-path .build-${{ matrix.arch }} || true
+          # Use default build location to avoid swiftpm_testing_helper XCTestCore issues
+          swift test --parallel -v
 
       - name: Build (release)
         if: steps.check.outputs.skipping == 'false'
