@@ -105,6 +105,7 @@ jobs:
             exit 0
           fi
 
+          echo "Test bundle found at: $TESTBUNDLE"
           echo "Locating XCTestCore.framework (checking multiple locations)"
           CANDIDATES=(
             "${DYLD_FRAMEWORK_PATH:-}"
@@ -139,23 +140,32 @@ jobs:
 
           if [ -z "$FOUND" ]; then
             echo "Did not find XCTestCore in candidates; doing wide search (this may take a few seconds)"
-            FOUND=$(find /Applications /usr -type d -name XCTestCore.framework -maxdepth 6 -print -quit || true)
+            FOUND=$(find /Applications /usr -type d -name XCTestCore.framework -maxdepth 6 -print -quit 2>/dev/null || true)
           fi
 
           if [ -z "$FOUND" ]; then
-            echo "XCTestCore.framework not found; tests may still fail to dlopen"
+            echo "WARNING: XCTestCore.framework not found anywhere on runner; tests may fail at cleanup"
             echo "Searched candidates:"
-            printf '%s
-' "${CANDIDATES[@]}"
+            printf '%s\n' "${CANDIDATES[@]}"
+            echo "This macos-15 runner may not have XCTestCore installed. Skipping embed."
             exit 0
           fi
 
-          echo "Embedding XCTestCore from $FOUND into $TESTBUNDLE/Contents/Frameworks"
+          echo "Copying XCTestCore to both bundle and build directory for @rpath resolution"
+          # Copy to bundle's Frameworks directory
           mkdir -p "$TESTBUNDLE/Contents/Frameworks"
           cp -R "$FOUND" "$TESTBUNDLE/Contents/Frameworks/"
 
-          echo "Listing embedded frameworks in test bundle:"
+          # Also copy to build directory root where dyld looks (../../../ from MacOS directory)
+          BUILD_DIR=$(dirname $(dirname "$TESTBUNDLE"))
+          mkdir -p "$BUILD_DIR"
+          cp -R "$FOUND" "$BUILD_DIR/"
+
+          echo "XCTestCore embedded at:"
+          echo "  - $TESTBUNDLE/Contents/Frameworks/XCTestCore.framework"
+          echo "  - $BUILD_DIR/XCTestCore.framework"
           ls -la "$TESTBUNDLE/Contents/Frameworks" || true
+          ls -la "$BUILD_DIR" | grep XCTest || true
           echo "Done"
 
       - name: Test diagnostics
