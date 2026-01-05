@@ -11,7 +11,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Ticklet",
-            path: "Sources/Ticklet"
+            path: "Sources/Ticklet",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
         ),
         .testTarget(
             name: "TickletTests",

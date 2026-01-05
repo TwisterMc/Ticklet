@@ -78,10 +78,30 @@ jobs:
       - name: Build (release)
         if: steps.check.outputs.skipping == 'false'
         run: |
-          swift build -c release --build-path .build-${{ matrix.arch }}
+          swift build -c release --build-path .build-${{ matrix.arch }} \
+            -Xswiftc -O -Xswiftc -whole-module-optimization
+
+      - name: Set version for packaging
+        if: steps.check.outputs.skipping == 'false'
+        id: version
+        run: |
+          # Use input tag if provided, otherwise check for git tags, fall back to 0.0.2
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+            VERSION="${VERSION#v}"  # strip leading 'v'
+          else
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.2")
+          fi
+          BUILD="${{ github.run_number }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build=$BUILD" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION, build: $BUILD"
 
       - name: Create .app bundle
         if: steps.check.outputs.skipping == 'false'
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          APP_BUILD: ${{ steps.version.outputs.build }}
         run: |
           set -e
           # locate built executable (path varies by build-path)
