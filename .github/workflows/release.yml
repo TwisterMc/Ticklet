@@ -19,10 +19,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: x86_64
-            os: macos-14
           - arch: arm64
             os: macos-15
+          - arch: x86_64
+            os: macos-15-intel
     steps:
       - uses: actions/checkout@v4
 
@@ -196,6 +196,14 @@ jobs:
           path: ./downloads/arm64
           if-no-files-found: ignore
 
+      - name: List available artifacts
+        run: |
+          echo "Contents of ./downloads:"
+          ls -laR ./downloads || echo "No downloads directory"
+          echo ""
+          echo "Files matching pattern ./downloads/*/Ticklet-*.zip:"
+          find ./downloads -name "Ticklet-*.zip" 2>/dev/null || echo "None found"
+
       - name: Determine release tag
         id: tag
         run: |
@@ -216,9 +224,21 @@ jobs:
           prerelease: true
           files: |
             ./downloads/*/Ticklet-*.zip
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check for missing artifacts
+        run: |
+          if ! ls ./downloads/*/Ticklet-*.zip 1> /dev/null 2>&1; then
+            echo "WARNING: No build artifacts found!"
+            echo "Both x86_64 and arm64 builds may have failed."
+            exit 1
+          fi
+          echo "✓ Found artifacts:"
+          ls -lh ./downloads/*/Ticklet-*.zip
+
       - name: Output Release URL (note)
+        if: success()
         run: |
           echo "Release draft created: https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.tag }}"
