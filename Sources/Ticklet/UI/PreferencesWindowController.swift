@@ -69,11 +69,11 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    public func windowWillClose(_ notification: Notification) {
+    func windowWillClose(_ notification: Notification) {
         saveWindowFrame()
     }
 
-    public func windowDidMove(_ notification: Notification) {
+    func windowDidMove(_ notification: Notification) {
         saveWindowFrame()
     }
 

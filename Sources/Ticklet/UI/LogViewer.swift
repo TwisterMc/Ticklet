@@ -215,11 +215,11 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     // MARK: - Table Data
-    public func numberOfRows(in tableView: NSTableView) -> Int {
+    func numberOfRows(in tableView: NSTableView) -> Int {
         return entries.count
     }
 
-    public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let e = entries[row]
         let id = tableColumn!.identifier.rawValue
         let text: String
@@ -334,7 +334,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     // MARK: - Navigation
 
     // MARK: - Sorting
-    public func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+    func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         sortEntries()
         saveSortDescriptor()
     }

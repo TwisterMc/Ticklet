@@ -24,10 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use system Xcode toolchain
-        run: |
-          echo "Using system Xcode toolchain; no explicit Swift install"
-
       - name: Check runner architecture
         id: check
         run: |
