@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - arch: x86_64
@@ -31,10 +31,13 @@ jobs:
         with:
           path: |
             .build
+            .build-${{ matrix.arch }}
             ~/Library/Caches/org.swift.swiftpm
           key: ${{ runner.os }}-${{ matrix.arch }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.arch }}-spm-
+
+      - name: Check runner architecture
         id: check
         run: |
           echo "runner=$(uname -m)"
