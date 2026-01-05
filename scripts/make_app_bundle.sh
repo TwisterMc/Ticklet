@@ -121,6 +121,12 @@ fi
 
 echo "App bundle created: $OUT_APP_PATH"
 
+# Signing configuration: can be overridden via environment variables
+# By default, perform ad-hoc signing so local builds work
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+ENTITLEMENTS="${ENTITLEMENTS:-}"
+SIGN_OPTIONS="${SIGN_OPTIONS:-}"
+
 # If the output is created inside ./artifacts and has an arch suffix (e.g. Ticklet-<arch>.app),
 # create a canonical ./artifacts/Ticklet.app copy so install instructions can be run reliably.
 OUT_DIR=$(dirname "$OUT_APP_PATH")
@@ -150,13 +156,6 @@ if ( echo "$OUT_BASE" | grep -qE '^Ticklet-[a-zA-Z0-9_]+\.app$' ) || ( echo "$OU
   fi
   chmod -R u+rwX "$CANONICAL" || true
   echo "Canonical artifact ready: $CANONICAL"
-
-  # By default, if SIGN_IDENTITY is not set, perform an ad-hoc sign so local builds are signed for testing.
-# You can override this by setting SIGN_IDENTITY to a specific identity (e.g. "Developer ID Application: Name (TEAMID)")
-# or set it to an empty string to skip signing entirely.
-SIGN_IDENTITY="${SIGN_IDENTITY:--}"
-ENTITLEMENTS="${ENTITLEMENTS:-}"
-SIGN_OPTIONS="${SIGN_OPTIONS:-}"
 
   if [ -n "${SIGN_IDENTITY:-}" ]; then
     echo "Signing canonical artifact with: ${SIGN_IDENTITY}"
