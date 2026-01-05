@@ -159,22 +159,60 @@ final class ActivityTracker {
         let appElement = AXUIElementCreateApplication(pid)
 
         func titleFromWindow(_ window: AXUIElement) -> String? {
+            // Try AXTitle first (most common)
             var titleRef: AnyObject?
             if AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRef) == .success, let s = titleRef as? String, !s.isEmpty {
                 return s
             }
+            
+            // Try AXDescription (some apps use this)
+            if AXUIElementCopyAttributeValue(window, kAXDescriptionAttribute as CFString, &titleRef) == .success, let s = titleRef as? String, !s.isEmpty {
+                return s
+            }
+            
+            // Try AXValue
             if AXUIElementCopyAttributeValue(window, kAXValueAttribute as CFString, &titleRef) == .success, let s = titleRef as? String, !s.isEmpty {
                 return s
             }
-            // try children for static text
+            
+            // Try AXDocument (document-based apps often set this to the file path or document name)
+            if AXUIElementCopyAttributeValue(window, kAXDocumentAttribute as CFString, &titleRef) == .success, let s = titleRef as? String, !s.isEmpty {
+                // Extract filename from path if it looks like a file path
+                let docString = s
+                if docString.contains("/") {
+                    return (docString as NSString).lastPathComponent
+                }
+                return docString
+            }
+            
+            // For Electron apps and some complex UIs: try to find title in toolbar or title UI element
+            var titleUIRef: AnyObject?
+            if AXUIElementCopyAttributeValue(window, kAXTitleUIElementAttribute as CFString, &titleUIRef) == .success, let titleUI = titleUIRef {
+                let titleUIElement = titleUI as! AXUIElement
+                var titleUIValue: AnyObject?
+                if AXUIElementCopyAttributeValue(titleUIElement, kAXValueAttribute as CFString, &titleUIValue) == .success, let s = titleUIValue as? String, !s.isEmpty {
+                    return s
+                }
+                if AXUIElementCopyAttributeValue(titleUIElement, kAXTitleAttribute as CFString, &titleUIValue) == .success, let s = titleUIValue as? String, !s.isEmpty {
+                    return s
+                }
+            }
+            
+            // Try children for static text (dialogs, alerts, some Electron windows)
             var childrenRef: AnyObject?
             if AXUIElementCopyAttributeValue(window, kAXChildrenAttribute as CFString, &childrenRef) == .success, let children = childrenRef as? [AXUIElement] {
                 for child in children {
                     var roleRef: AnyObject?
-                    if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success, let role = roleRef as? String, role == kAXStaticTextRole as String {
-                        var val: AnyObject?
-                        if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &val) == .success, let s = val as? String, !s.isEmpty {
-                            return s
+                    if AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &roleRef) == .success, let role = roleRef as? String {
+                        // Check static text or toolbar elements
+                        if role == kAXStaticTextRole as String || role == kAXToolbarRole as String {
+                            var val: AnyObject?
+                            if AXUIElementCopyAttributeValue(child, kAXValueAttribute as CFString, &val) == .success, let s = val as? String, !s.isEmpty {
+                                return s
+                            }
+                            if AXUIElementCopyAttributeValue(child, kAXTitleAttribute as CFString, &val) == .success, let s = val as? String, !s.isEmpty {
+                                return s
+                            }
                         }
                     }
                 }
@@ -182,7 +220,7 @@ final class ActivityTracker {
             return nil
         }
 
-        // Try focused window
+        // Try focused window first (catches active tabs, focused documents)
         var focusedWindow: CFTypeRef?
         if AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success, focusedWindow != nil {
             let window = focusedWindow as! AXUIElement
@@ -195,8 +233,15 @@ final class ActivityTracker {
             let mwin = mainWindow as! AXUIElement
             if let t = titleFromWindow(mwin) { return (appName, t) }
         }
+        
+        // For apps with multiple windows but no focused/main window, try the windows list
+        var windowsRef: AnyObject?
+        if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef) == .success, let windows = windowsRef as? [AXUIElement], !windows.isEmpty {
+            // Try first visible window (often the frontmost)
+            if let t = titleFromWindow(windows[0]) { return (appName, t) }
+        }
 
-        // Try getting a title from the application itself
+        // Try getting a title from the application itself (menu bar apps, status items)
         var appTitleRef: AnyObject?
         if AXUIElementCopyAttributeValue(appElement, kAXTitleAttribute as CFString, &appTitleRef) == .success, let s = appTitleRef as? String, !s.isEmpty {
             return (appName, s)
