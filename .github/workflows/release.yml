@@ -83,10 +83,13 @@ jobs:
       - name: Run tests
         if: steps.check.outputs.skipping == 'false'
         run: |
-          # Unset TOOLCHAINS to ensure we use system Xcode Swift (not standalone toolchain)
+          # CRITICAL FIX: Avoid swiftpm_testing_helper crash by using xcodebuild
+          # Unset TOOLCHAINS to ensure we use system Xcode (not standalone toolchain)
           unset TOOLCHAINS
-          # Use default build location to avoid swiftpm_testing_helper XCTestCore issues
-          swift test --parallel -v
+          # Recommended: run tests via xcodebuild which links XCTest correctly on macOS
+          xcodebuild test \
+            -scheme Ticklet \
+            -destination 'platform=macOS'
 
       - name: Build (release)
         if: steps.check.outputs.skipping == 'false'
