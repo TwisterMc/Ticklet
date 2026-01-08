@@ -26,7 +26,7 @@ APP_NAME=$(basename "$OUT_APP_PATH" .app)
 
 # Versioning: allow callers to override the app version and build via env vars
 # Default to the next release version
-APP_VERSION="${APP_VERSION:-0.0.2}"
+APP_VERSION="${APP_VERSION:-0.0.3}"
 APP_BUILD="${APP_BUILD:-0}"
 
 CONTENTS="$OUT_APP_PATH/Contents"

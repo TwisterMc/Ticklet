@@ -106,7 +106,7 @@ jobs:
             VERSION="${{ github.event.inputs.tag }}"
             VERSION="${VERSION#v}"  # strip leading 'v'
           else
-            VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.2")
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.3")
           fi
           BUILD="${{ github.run_number }}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
