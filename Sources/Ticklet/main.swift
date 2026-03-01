@@ -81,6 +81,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(openFolder)
 
         menu.addItem(.separator())
+        let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+        let settings = NSMenuItem(title: "Settings...", action: #selector(openPreferences), keyEquivalent: "")
+        settings.target = self
+        menu.addItem(settings)
+        let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
+        donate.target = self
+        menu.addItem(donate)
+
+        menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit Ticklet", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
@@ -176,6 +187,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     let openFolder = NSMenuItem(title: "Open Logs Folder", action: #selector(openLogsFolder), keyEquivalent: "")
                     openFolder.target = self
                     menu.addItem(openFolder)
+                    let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
+                    about.target = self
+                    menu.addItem(about)
+                    let settings = NSMenuItem(title: "Settings", action: #selector(openPreferences), keyEquivalent: "")
+                    settings.target = self
+                    menu.addItem(settings)
+                    let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
+                    donate.target = self
+                    menu.addItem(donate)
                     menu.addItem(.separator())
                     menu.addItem(NSMenuItem(title: "Quit Ticklet", action: #selector(quit), keyEquivalent: "q"))
                     createStatusItem(with: menu)
@@ -354,6 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         preferencesWindowController?.showWindow(nil)
         preferencesWindowController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     // MARK: - NSMenuDelegate
@@ -391,6 +412,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openLogsFolder() {
         if let url = logger?.logsDirectory {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func openDonate() {
+        if let url = URL(string: "https://ko-fi.com/twistermc") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func openAboutPage() {
+        if let url = URL(string: "https://github.com/TwisterMc/Ticklet/") {
             NSWorkspace.shared.open(url)
         }
     }
