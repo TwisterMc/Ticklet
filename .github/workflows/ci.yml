@@ -11,13 +11,25 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Install Swift
-        uses: fwal/setup-swift@v2
+      
+      - name: Cache Swift build artifacts
+        uses: actions/cache@v4
         with:
-          swift-version: "6.0"
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      
+      - name: Verify Swift version
+        run: swift --version
+      
       - name: Build (debug)
         run: swift build
+      
       - name: Test
         run: swift test
+      
       - name: Build (release)
         run: swift build -c release
