@@ -69,7 +69,7 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
 
 ## Donate
 
-If you find Vaaka useful and would like to support its development, consider making a [donation](https://ko-fi.com/twistermc). Every bit helps and is greatly appreciated!
+If you find Ticklet useful and would like to support its development, consider making a [donation](https://ko-fi.com/twistermc). Every bit helps and is greatly appreciated!
 
 ---
 

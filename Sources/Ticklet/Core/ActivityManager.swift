@@ -52,7 +52,7 @@ final class ActivityManager {
         do {
             try logger.append(entries: [entry], for: entry.startTime)
         } catch {
-            print("Failed to append log: \(error)")
+            NSLog("[Ticklet] Error appending entry to log: \(error)")
         }
 
         NotificationCenter.default.post(name: .tickletEntryFinalized, object: entry)
@@ -64,8 +64,11 @@ final class ActivityManager {
 
             // Merge with on-disk entries (if any) to avoid overwriting existing data
             var merged = list
-            if let existing = try? logger.readEntries(for: date) {
+            do {
+                let existing = try logger.readEntries(for: date)
                 merged.append(contentsOf: existing)
+            } catch {
+                NSLog("[Ticklet] Error reading entries during flush for \(key): \(error)")
             }
 
             // Deduplicate by start/end/app/title
@@ -79,7 +82,11 @@ final class ActivityManager {
                 }
             }
 
-            try? logger.write(entries: deduped, for: date)
+            do {
+                try logger.write(entries: deduped, for: date)
+            } catch {
+                NSLog("[Ticklet] Error writing entries during flush for \(key): \(error)")
+            }
         }
     }
 }

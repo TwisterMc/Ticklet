@@ -85,11 +85,25 @@ final class CSVLogger: LogWriter {
         let data = try String(contentsOf: fileURL, encoding: .utf8)
         var entries: [ActivityEntry] = []
         let lines = data.components(separatedBy: CharacterSet.newlines)
+        
+        // Validate header
         guard lines.count > 1 else { return [] }
+        let headerLine = lines[0]
+        let headerFields = parseCSVLine(headerLine)
+        let expectedHeader = ["start_time", "end_time", "duration_seconds", "app_name", "window_title"]
+        guard headerFields == expectedHeader else {
+            NSLog("[Ticklet] Warning: CSV header mismatch for \(filename). Expected: \(expectedHeader.joined(separator: ",")), Got: \(headerFields.joined(separator: ","))")
+            return []
+        }
+        
+        var skippedCount = 0
         for line in lines.dropFirst() {
             if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
             let fields = parseCSVLine(line)
-            guard fields.count >= 5 else { continue }
+            guard fields.count >= 5 else {
+                skippedCount += 1
+                continue
+            }
             let startStr = fields[0]
             let endStr = fields[1]
             let app = fields[3]
@@ -97,8 +111,15 @@ final class CSVLogger: LogWriter {
             if let start = lineDateFormatter.date(from: startStr), let end = lineDateFormatter.date(from: endStr) {
                 let e = ActivityEntry(appName: app, windowTitle: win, startTime: start, endTime: end)
                 entries.append(e)
+            } else {
+                skippedCount += 1
             }
         }
+        
+        if skippedCount > 0 {
+            NSLog("[Ticklet] Skipped \(skippedCount) malformed entries in \(filename)")
+        }
+        
         return entries
     }
 

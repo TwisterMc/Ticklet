@@ -1,6 +1,18 @@
 import AppKit
 import UniformTypeIdentifiers
 
+// Custom view to handle keyboard shortcuts
+private class KeyboardAwareView: NSView {
+    var keyHandler: ((NSEvent) -> Bool)?
+    
+    override func keyDown(with event: NSEvent) {
+        if let handler = keyHandler, handler(event) {
+            return
+        }
+        super.keyDown(with: event)
+    }
+}
+
 final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     private let tableView = NSTableView()
     private let scroll = NSScrollView()
@@ -16,10 +28,10 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     // Cache app icons by app name for performance
     private var appIconCache: [String: NSImage] = [:]
 
-
     // History for back/forward navigation (stores startOfDay dates)
     private var history: [Date] = []
     private var historyIndex: Int = -1
+    // ...existing code...
 
     init(logger: CSVLogger) {
         self.logger = logger
@@ -37,6 +49,8 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         load(date: today, recordHistory: false)
         // restore any previously saved sort descriptor
         restoreSortDescriptor()
+        // Warm up app icon cache for visible entries
+        warmupIconCache()
     }
 
     required init?(coder: NSCoder) {
@@ -44,9 +58,17 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     private func setupUI() {
-        guard let content = window?.contentView else { return }
+        guard let window = window else { return }
+        
+        // Use custom view to handle keyboard shortcuts
+        let contentView = KeyboardAwareView(frame: window.contentView?.frame ?? .zero)
+        contentView.keyHandler = { [weak self] event in
+            return self?.handleKeyboardShortcut(event) ?? false
+        }
+        window.contentView = contentView
+        let content = contentView
 
-        // Back / Forward / Today controls
+        // ...existing code...
         if let backImage = NSImage(systemSymbolName: "arrowshape.backward.fill", accessibilityDescription: "Back") {
             backImage.isTemplate = true
             backButton.image = backImage
@@ -133,7 +155,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
 
         scroll.documentView = tableView
         scroll.hasVerticalScroller = true
-        scroll.frame = NSRect(x: 10, y: 10, width: content.bounds.width - 20, height: content.bounds.height - 60)
+        scroll.frame = NSRect(x: 10, y: 40, width: content.bounds.width - 20, height: content.bounds.height - 90)
         scroll.autoresizingMask = [.width, .height]
         // ensure tableView fills the scroll area
         tableView.frame = scroll.bounds
@@ -407,6 +429,14 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
 
     }
 
+    private func warmupIconCache() {
+        // Pre-load icons for all visible app names to avoid UI lag
+        let appNames = Set(entries.map { $0.appName })
+        for appName in appNames {
+            _ = appIcon(for: appName)
+        }
+    }
+
     @objc private func goBack() {
         let current = datePicker.dateValue
         if let prev = Calendar.current.date(byAdding: .day, value: -1, to: current) {
@@ -461,4 +491,36 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         let s = NSStringFromRect(w.frame)
         UserDefaults.standard.set(s, forKey: frameDefaultsKey)
     }
+
+    // MARK: - Keyboard Shortcuts
+    private func handleKeyboardShortcut(_ event: NSEvent) -> Bool {
+        // Check for command key (Cmd)
+        guard event.modifierFlags.contains(.command) else { return false }
+        
+        let chars = event.charactersIgnoringModifiers ?? ""
+        switch chars.lowercased() {
+        case "t":
+            self.goToday()
+            return true
+        case "r":
+            self.refreshLogs()
+            return true
+        case "[":
+            self.goBack()
+            return true
+        case "]":
+            self.goForward()
+            return true
+        default:
+            if event.keyCode == 123 {
+                self.goBack()
+                return true
+            } else if event.keyCode == 124 {
+                self.goForward()
+                return true
+            }
+            return false
+        }
+    }
 }
+

@@ -43,9 +43,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         content.addSubview(pollField)
 
         pollStepper.frame = NSRect(x: 276, y: 24, width: 18, height: 22)
-        pollStepper.minValue = 1
-        pollStepper.maxValue = 60
-        pollStepper.increment = 1
+        pollStepper.minValue = 0.1
+        pollStepper.maxValue = 60.0
+        pollStepper.increment = 0.5
         pollStepper.valueWraps = false
         pollStepper.target = self
         pollStepper.action = #selector(pollStepperChanged(_:))
@@ -53,9 +53,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
         // Initialize value from UserDefaults or fallback
         let saved = UserDefaults.standard.double(forKey: "pollIntervalSeconds")
-        let initial = saved > 0 ? saved : 1.0
-        pollField.stringValue = String(Int(initial))
-        pollStepper.integerValue = Int(initial)
+        let initial = saved > 0 && saved >= 0.1 && saved <= 60.0 ? saved : 1.0
+        pollField.stringValue = String(format: "%.1f", initial)
+        pollStepper.doubleValue = initial
     }
 
     // MARK: - Window frame persistence
@@ -93,20 +93,21 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func pollStepperChanged(_ sender: NSStepper) {
         let val = sender.doubleValue
-        pollField.stringValue = String(Int(val))
+        pollField.stringValue = String(format: "%.1f", val)
         savePollInterval(val)
     }
 
     @objc private func pollFieldChanged(_ sender: NSTextField) {
         let s = sender.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let v = Double(s), v >= 1.0 {
-            let val = floor(v)
-            pollStepper.doubleValue = val
-            pollField.stringValue = String(Int(val))
-            savePollInterval(val)
+        if let v = Double(s) {
+            // Clamp value between 0.1 and 60 seconds
+            let clamped = max(0.1, min(60.0, v))
+            pollStepper.doubleValue = clamped
+            pollField.stringValue = String(format: "%.1f", clamped)
+            savePollInterval(clamped)
         } else {
             // reset to stepper's value
-            pollField.stringValue = String(Int(pollStepper.doubleValue))
+            pollField.stringValue = String(format: "%.1f", pollStepper.doubleValue)
         }
     }
 
