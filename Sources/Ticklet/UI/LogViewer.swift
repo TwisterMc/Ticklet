@@ -49,11 +49,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         return f
     }()
 
-    // History for back/forward navigation (stores startOfDay dates)
-    private var history: [Date] = []
-    private var historyIndex: Int = -1
-    // ...existing code...
-
     init(logger: CSVLogger) {
         self.logger = logger
         let defaultRect = NSRect(x: 0, y: 0, width: 800, height: 600)
@@ -63,11 +58,9 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         window.delegate = self
         restoreWindowFrame()
         setupUI()
-        // initialize history with today
         let today = Calendar.current.startOfDay(for: Date())
-        pushToHistory(today)
         datePicker.dateValue = today
-        load(date: today, recordHistory: false)
+        load(date: today)
         // restore any previously saved sort descriptor
         restoreSortDescriptor()
         // Warm up app icon cache for visible entries
@@ -89,7 +82,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         window.contentView = contentView
         let content = contentView
 
-        // ...existing code...
         if let backImage = NSImage(systemSymbolName: "arrowshape.backward.fill", accessibilityDescription: "Back") {
             backImage.isTemplate = true
             backButton.image = backImage
@@ -233,7 +225,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     @objc private func refreshLogs() {
-        load(date: datePicker.dateValue, recordHistory: false)
+        load(date: datePicker.dateValue)
     }
 
     /// Public refresh entry point (usable from menu actions)
@@ -241,12 +233,9 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         refreshLogs()
     }
 
-    public func load(date: Date, recordHistory: Bool = true) {
+    public func load(date: Date) {
         // normalize to start of day for consistent file lookup
         let keyDate = Calendar.current.startOfDay(for: date)
-        if recordHistory {
-            pushToHistory(keyDate)
-        }
         do {
             entries = try logger.readEntries(for: keyDate)
             // Apply any current sort descriptor and reload
@@ -389,8 +378,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         }
     }
 
-    // MARK: - Navigation
-
     // MARK: - Sorting
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         sortEntries()
@@ -438,22 +425,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         tableView.sortDescriptors = [sd]
         sortEntries()
     }
-    private func pushToHistory(_ date: Date) {
-        // collapse any forward history and append
-        if historyIndex < history.count - 1 {
-            history = Array(history.prefix(upTo: historyIndex + 1))
-        }
-        // avoid duplicate consecutive entries
-        if let last = history.last, Calendar.current.isDate(last, inSameDayAs: date) {
-            history[history.count - 1] = date
-            historyIndex = history.count - 1
-            return
-        }
-        history.append(date)
-        historyIndex = history.count - 1
-        updateNavigationButtons()
-    }
-
     private func updateNavigationButtons() {
         let today = Calendar.current.startOfDay(for: Date())
         let selected = Calendar.current.startOfDay(for: datePicker.dateValue)
@@ -477,7 +448,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         let current = datePicker.dateValue
         if let prev = Calendar.current.date(byAdding: .day, value: -1, to: current) {
             datePicker.dateValue = prev
-            load(date: prev, recordHistory: false)
+            load(date: prev)
         }
     }
 
@@ -489,7 +460,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             // Prevent going into future beyond today
             if nextStart <= today {
                 datePicker.dateValue = next
-                load(date: next, recordHistory: false)
+                load(date: next)
             }
         }
     }

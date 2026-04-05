@@ -26,7 +26,7 @@ final class ActivityManagerTests: XCTestCase {
         let now = Date()
         let tracker = ActivityTracker(now: { now })
         let mock = MockLogger()
-        let manager = ActivityManager(logger: mock, tracker: tracker, now: { now })
+        let manager = ActivityManager(logger: mock, tracker: tracker)
 
         // Simulate finalized entry
         let entry = ActivityEntry(appName: "A", windowTitle: "win", startTime: now)

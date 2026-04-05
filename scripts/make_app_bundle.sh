@@ -62,11 +62,11 @@ cat > "$INFOPLIST" <<PLIST
   <key>CFBundleExecutable</key>
   <string>$EXEC_BASENAME</string>
   <key>CFBundleDisplayName</key>
-  <string>$EXEC_BASENAME</string>
+  <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
-  <string>$EXEC_BASENAME</string>
+  <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleVersion</key>
