@@ -5,6 +5,9 @@ final class CSVLogger: LogWriter {
 
     /// Exposed for UI actions (Open Logs Folder)
     var logsDirectory: URL { directory }
+
+    /// When true, window titles are omitted from CSV output (only app names are logged).
+    var redactWindowTitles: Bool = false
     private let fileDateFormatter: DateFormatter
     private let lineDateFormatter: DateFormatter
     private let fileManager = FileManager.default
@@ -37,7 +40,7 @@ final class CSVLogger: LogWriter {
             let start = lineDateFormatter.string(from: e.startTime)
             let endStr = lineDateFormatter.string(from: end)
             let app = escape(e.appName)
-            let win = escape(e.windowTitle)
+            let win = redactWindowTitles ? "" : escape(e.windowTitle)
             csv += "\(start),\(endStr),\(duration),\(app),\(win)\n"
         }
 
@@ -56,7 +59,7 @@ final class CSVLogger: LogWriter {
             let start = lineDateFormatter.string(from: e.startTime)
             let endStr = lineDateFormatter.string(from: end)
             let app = escape(e.appName)
-            let win = escape(e.windowTitle)
+            let win = redactWindowTitles ? "" : escape(e.windowTitle)
             toWrite += "\(start),\(endStr),\(duration),\(app),\(win)\n"
         }
 

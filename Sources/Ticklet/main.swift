@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenuItem.submenu = appMenu
         appMenu.addItem(withTitle: "About \(appName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
+        appMenu.addItem(withTitle: "Settings…", action: #selector(openPreferences), keyEquivalent: ",")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit \(appName)", action: #selector(quit), keyEquivalent: "q")
 
@@ -84,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
-        let settings = NSMenuItem(title: "Settings...", action: #selector(openPreferences), keyEquivalent: "")
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
         let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
@@ -128,10 +128,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // initialize tracker, logger, and UI
         do {
             logger = try CSVLogger()
+            // Apply saved privacy preference
+            logger?.redactWindowTitles = UserDefaults.standard.bool(forKey: "redactWindowTitles")
             tracker = ActivityTracker()
-            // Apply user-configured poll interval (seconds) if present
+            // Apply user-configured poll interval (seconds) if present, with bounds check
             let savedInterval = UserDefaults.standard.double(forKey: "pollIntervalSeconds")
-            if savedInterval > 0 {
+            if savedInterval >= 0.1 && savedInterval <= 60.0 {
                 tracker?.setPollInterval(savedInterval)
             }
             manager = ActivityManager(logger: logger!, tracker: tracker!)
@@ -160,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        accessibilityPollTimer?.invalidate()
+        accessibilityPollTimer = nil
         manager?.stop()
     }
 
@@ -190,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
                     about.target = self
                     menu.addItem(about)
-                    let settings = NSMenuItem(title: "Settings", action: #selector(openPreferences), keyEquivalent: "")
+                    let settings = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: "")
                     settings.target = self
                     menu.addItem(settings)
                     let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
@@ -222,6 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             btn.isBordered = false
             // use alpha to indicate idle vs active; do not set contentTintColor so system uses the correct menu-bar color
             btn.alphaValue = 1.0
+            btn.setAccessibilityLabel("Ticklet — activity tracking")
         }
 
         // Ensure accessibility label is updated right away so menu shows a human-readable first item

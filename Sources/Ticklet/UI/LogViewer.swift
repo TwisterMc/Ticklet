@@ -4,7 +4,21 @@ import UniformTypeIdentifiers
 // Custom view to handle keyboard shortcuts
 private class KeyboardAwareView: NSView {
     var keyHandler: ((NSEvent) -> Bool)?
-    
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        // This view is a structural container — hide it from the accessibility tree
+        // so VoiceOver navigates directly to the controls it contains.
+        setAccessibilityElement(false)
+        setAccessibilityRole(.group)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setAccessibilityElement(false)
+        setAccessibilityRole(.group)
+    }
+
     override func keyDown(with event: NSEvent) {
         if let handler = keyHandler, handler(event) {
             return
@@ -27,6 +41,13 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
 
     // Cache app icons by app name for performance
     private var appIconCache: [String: NSImage] = [:]
+
+    // Shared formatter — DateFormatter init is expensive, allocate once
+    private let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
 
     // History for back/forward navigation (stores startOfDay dates)
     private var history: [Date] = []
@@ -82,6 +103,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             backButton.target = self
             backButton.action = #selector(goBack)
             backButton.toolTip = "Back (previous date)"
+            backButton.setAccessibilityLabel("Previous day")
             content.addSubview(backButton)
         } else {
             // Fallback to text if SF Symbol not available
@@ -93,6 +115,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             backButton.target = self
             backButton.action = #selector(goBack)
             backButton.toolTip = "Back (previous date)"
+            backButton.setAccessibilityLabel("Previous day")
             content.addSubview(backButton)
         }
 
@@ -109,6 +132,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             forwardButton.target = self
             forwardButton.action = #selector(goForward)
             forwardButton.toolTip = "Forward (next date)"
+            forwardButton.setAccessibilityLabel("Next day")
             content.addSubview(forwardButton)
         } else {
             forwardButton.title = "▶"
@@ -119,6 +143,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             forwardButton.target = self
             forwardButton.action = #selector(goForward)
             forwardButton.toolTip = "Forward (next date)"
+            forwardButton.setAccessibilityLabel("Next day")
             content.addSubview(forwardButton)
         }
 
@@ -131,6 +156,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         todayButton.target = self
         todayButton.action = #selector(goToday)
         todayButton.toolTip = "Go to today"
+        todayButton.setAccessibilityLabel("Go to today")
         content.addSubview(todayButton)
 
         datePicker.datePickerStyle = .textFieldAndStepper
@@ -140,6 +166,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         datePicker.target = self
         datePicker.action = #selector(dateChanged)
         datePicker.dateValue = Date()
+        datePicker.setAccessibilityLabel("Log date")
         content.addSubview(datePicker)
 
         // Refresh button to reload current day's logs
@@ -151,6 +178,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         refreshButton.target = self
         refreshButton.action = #selector(refreshLogs)
         refreshButton.toolTip = "Reload logs for selected date"
+        refreshButton.setAccessibilityLabel("Refresh logs")
         content.addSubview(refreshButton)
 
         scroll.documentView = tableView
@@ -197,6 +225,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         tableView.dataSource = self
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.rowHeight = 22
+        tableView.setAccessibilityLabel("Activity log entries")
     }
 
     @objc private func dateChanged() {
@@ -242,77 +271,84 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard let column = tableColumn else { return nil }
         let e = entries[row]
-        let id = tableColumn!.identifier.rawValue
-        let text: String
-        if id == "time" {
-            let s = DateFormatter()
-            s.dateFormat = "HH:mm:ss"
-            text = s.string(from: e.startTime)
-        } else if id == "duration" {
-            if let d = e.durationSeconds {
-                text = formatDuration(Int(d))
-            } else {
-                text = ""
-            }
-        } else if id == "app" {
-            text = e.appName
-        } else {
-            text = e.windowTitle
-        }
-        // Use a view-based cell for more reliable styling across appearances
-        let cellView = NSTableCellView()
+        let colId = column.identifier
 
-        if id == "app" {
-            // Create an image view for the app icon and a text field for the app name
+        // Attempt to reuse an existing cell for this column
+        if let cell = tableView.makeView(withIdentifier: colId, owner: self) as? NSTableCellView {
+            switch colId.rawValue {
+            case "time":
+                cell.textField?.stringValue = timeFormatter.string(from: e.startTime)
+            case "duration":
+                cell.textField?.stringValue = e.durationSeconds.map { formatDuration(Int($0)) } ?? ""
+            case "app":
+                cell.textField?.stringValue = e.appName
+                cell.imageView?.image = appIcon(for: e.appName)
+            default: // "window"
+                cell.textField?.stringValue = e.windowTitle
+            }
+            return cell
+        }
+
+        // No reusable cell — build one for this column type
+        let cell = NSTableCellView()
+        cell.identifier = colId
+
+        if colId.rawValue == "app" {
             let iv = NSImageView()
             iv.translatesAutoresizingMaskIntoConstraints = false
             iv.imageScaling = .scaleProportionallyDown
-            iv.image = appIcon(for: text)
+            iv.image = appIcon(for: e.appName)
             iv.setContentHuggingPriority(.required, for: .horizontal)
             iv.setContentCompressionResistancePriority(.required, for: .horizontal)
-            iv.wantsLayer = false
-            cellView.addSubview(iv)
+            // Icon is decorative — the text field already conveys the app name
+            iv.setAccessibilityHidden(true)
+            cell.imageView = iv
+            cell.addSubview(iv)
 
-            let tf = NSTextField(labelWithString: text)
+            let tf = NSTextField(labelWithString: e.appName)
             tf.translatesAutoresizingMaskIntoConstraints = false
             tf.textColor = .labelColor
-            tf.isBezeled = false
-            tf.drawsBackground = false
             tf.lineBreakMode = .byTruncatingTail
-            cellView.addSubview(tf)
+            cell.textField = tf
+            cell.addSubview(tf)
 
             NSLayoutConstraint.activate([
-                iv.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 6),
-                iv.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                iv.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+                iv.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
                 iv.widthAnchor.constraint(equalToConstant: 16),
                 iv.heightAnchor.constraint(equalToConstant: 16),
-
                 tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 6),
-                tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
-                tf.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 1),
-                tf.bottomAnchor.constraint(equalTo: cellView.bottomAnchor, constant: -1),
+                tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                tf.topAnchor.constraint(equalTo: cell.topAnchor, constant: 1),
+                tf.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -1),
             ])
+            return cell
+        }
 
-            cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
-            return cellView
+        // Text-only columns
+        let text: String
+        switch colId.rawValue {
+        case "time":     text = timeFormatter.string(from: e.startTime)
+        case "duration": text = e.durationSeconds.map { formatDuration(Int($0)) } ?? ""
+        default:         text = e.windowTitle
         }
 
         let tf = NSTextField(labelWithString: text)
         tf.translatesAutoresizingMaskIntoConstraints = false
         tf.textColor = .labelColor
-        tf.isBezeled = false
-        tf.drawsBackground = false
         tf.lineBreakMode = .byTruncatingTail
-        cellView.addSubview(tf)
+        cell.textField = tf
+        cell.addSubview(tf)
+
         NSLayoutConstraint.activate([
-            tf.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 6),
-            tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
-            tf.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 1),
-            tf.bottomAnchor.constraint(equalTo: cellView.bottomAnchor, constant: -1),
+            tf.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+            tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+            tf.topAnchor.constraint(equalTo: cell.topAnchor, constant: 1),
+            tf.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -1),
         ])
-        cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
-        return cellView
+        return cell
     }
 
     // MARK: - App icon helpers

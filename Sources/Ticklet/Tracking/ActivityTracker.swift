@@ -157,6 +157,8 @@ final class ActivityTracker {
 
         let pid = app.processIdentifier
         let appElement = AXUIElementCreateApplication(pid)
+        // Prevent a stalled target app from blocking the main thread for more than 100ms
+        AXUIElementSetMessagingTimeout(appElement, 0.1)
 
         func titleFromWindow(_ window: AXUIElement) -> String? {
             // Try AXTitle first (most common)

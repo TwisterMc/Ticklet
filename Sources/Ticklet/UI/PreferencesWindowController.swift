@@ -2,16 +2,17 @@ import AppKit
 
 final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let checkbox = NSButton(checkboxWithTitle: "Show status item in menu bar", target: nil, action: nil)
+    private let redactCheckbox = NSButton(checkboxWithTitle: "Only log app names (hide window titles)", target: nil, action: nil)
     private let pollLabel = NSTextField(labelWithString: "Sampling interval (seconds):")
     private let pollField = NSTextField(string: "")
     private let pollStepper = NSStepper()
     private let frameDefaultsKey = "PreferencesWindowFrame"
 
     init() {
-        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 120)
+        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 150)
         let window = NSWindow(contentRect: defaultRect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = "Preferences"
+        window.title = "Settings"
         window.delegate = self
         restoreWindowFrame()
         setupUI()
@@ -23,6 +24,15 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     private func setupUI() {
         guard let content = window?.contentView else { return }
+
+        // "Redact window titles" toggle (top row)
+        redactCheckbox.frame = NSRect(x: 20, y: 96, width: 380, height: 18)
+        redactCheckbox.target = self
+        redactCheckbox.action = #selector(toggleRedactWindowTitles(_:))
+        content.addSubview(redactCheckbox)
+        let redact = UserDefaults.standard.bool(forKey: "redactWindowTitles")
+        redactCheckbox.state = redact ? .on : .off
+
         checkbox.frame = NSRect(x: 20, y: 64, width: 380, height: 18)
         checkbox.target = self
         checkbox.action = #selector(toggleStatusItem(_:))
@@ -81,6 +91,14 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         guard let w = window else { return }
         let s = NSStringFromRect(w.frame)
         UserDefaults.standard.set(s, forKey: frameDefaultsKey)
+    }
+
+    @objc private func toggleRedactWindowTitles(_ sender: NSButton) {
+        let redact = (sender.state == .on)
+        UserDefaults.standard.set(redact, forKey: "redactWindowTitles")
+        if let app = NSApp.delegate as? AppDelegate {
+            app.logger?.redactWindowTitles = redact
+        }
     }
 
     @objc private func toggleStatusItem(_ sender: NSButton) {
