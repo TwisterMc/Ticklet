@@ -10,10 +10,11 @@ private func bundleDisplayName() -> String {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    var statusItem: NSStatusItem?
-    var logger: CSVLogger?
-    var tracker: ActivityTracker?
-    var manager: ActivityManager?
+    private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
+    private var logger: CSVLogger?
+    private var tracker: ActivityTracker?
+    private var manager: ActivityManager?
     private var accessibilityPollTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -62,39 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         NSApp.mainMenu = mainMenu
 
-        // Status/menu for the status item (keeps existing items)
-        let menu = NSMenu()
-
-        // Accessibility status item — visible until permission is granted
-        let accessItem = NSMenuItem(title: "Accessibility Access Required — Enable…", action: #selector(openAccessibilityPreferences), keyEquivalent: "")
-        accessItem.target = self
-        menu.addItem(accessItem)
-
-        self.accessibilityMenuItem = accessItem
-
-        let viewLogs = NSMenuItem(title: "View Logs…", action: #selector(openLogsViewer), keyEquivalent: "")
-        viewLogs.target = self
-        menu.addItem(viewLogs)
-
-        let openFolder = NSMenuItem(title: "Open Logs Folder", action: #selector(openLogsFolder), keyEquivalent: "")
-        openFolder.target = self
-        menu.addItem(openFolder)
-
-        menu.addItem(.separator())
-        let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
-        about.target = self
-        menu.addItem(about)
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: "")
-        settings.target = self
-        menu.addItem(settings)
-        let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
-        donate.target = self
-        menu.addItem(donate)
-
-        menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit Ticklet", action: #selector(quit), keyEquivalent: "q")
-        quit.target = self
-        menu.addItem(quit)
+        // Build and retain the status-bar menu so it can be reused if the
+        // user toggles the status item off and back on via Preferences.
+        let menu = buildStatusMenu()
+        statusMenu = menu
 
         // Read preference to determine if we should show status item (default: true)
         let show = UserDefaults.standard.object(forKey: "showStatusItem") as? Bool ?? true
@@ -133,11 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 // Capture the app name (a Sendable type) so we don't send the whole entry into the MainActor task
                 let appName = entry.appName
                 Task { @MainActor in
-                    if appName == "[IDLE]" {
-                        self?.updateStatusIcon(isIdle: true)
-                    } else {
-                        self?.updateStatusIcon(isIdle: false)
-                    }
+                    self?.updateStatusIcon(isIdle: appName == "[IDLE]")
                 }
             }
 
@@ -155,6 +123,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         manager?.stop()
     }
 
+    // MARK: - Status menu
+
+    private func buildStatusMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        // Accessibility status item — visible until permission is granted
+        let accessItem = NSMenuItem(title: "Accessibility Access Required — Enable…", action: #selector(openAccessibilityPreferences), keyEquivalent: "")
+        accessItem.target = self
+        menu.addItem(accessItem)
+        self.accessibilityMenuItem = accessItem
+
+        let viewLogs = NSMenuItem(title: "View Logs…", action: #selector(openLogsViewer), keyEquivalent: "")
+        viewLogs.target = self
+        menu.addItem(viewLogs)
+
+        let openFolder = NSMenuItem(title: "Open Logs Folder", action: #selector(openLogsFolder), keyEquivalent: "")
+        openFolder.target = self
+        menu.addItem(openFolder)
+
+        menu.addItem(.separator())
+
+        let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: "")
+        settings.target = self
+        menu.addItem(settings)
+
+        let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
+        donate.target = self
+        menu.addItem(donate)
+
+        menu.addItem(.separator())
+
+        let quit = NSMenuItem(title: "Quit Ticklet", action: #selector(self.quit), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+
+        return menu
+    }
+
     // Preferences
     private var preferencesWindowController: PreferencesWindowController?
     private var logViewerWindowController: LogViewerWindowController?
@@ -162,36 +172,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         didSet {
             UserDefaults.standard.set(showStatusItem, forKey: "showStatusItem")
             if showStatusItem {
-                // recreate menu if needed
-                if let menu = statusItem?.menu {
-                    createStatusItem(with: menu)
-                } else {
-                    // If we don't have a menu yet, create one similar to existing
-                    let menu = NSMenu()
-                    let ai = NSMenuItem(title: "Accessibility Access Required — Enable…", action: #selector(openAccessibilityPreferences), keyEquivalent: "")
-                    ai.target = self
-                    menu.addItem(ai)
-                    self.accessibilityMenuItem = ai
-                    menu.addItem(.separator())
-                    let viewLogs = NSMenuItem(title: "View Logs…", action: #selector(openLogsViewer), keyEquivalent: "")
-                    viewLogs.target = self
-                    menu.addItem(viewLogs)
-                    let openFolder = NSMenuItem(title: "Open Logs Folder", action: #selector(openLogsFolder), keyEquivalent: "")
-                    openFolder.target = self
-                    menu.addItem(openFolder)
-                    let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
-                    about.target = self
-                    menu.addItem(about)
-                    let settings = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: "")
-                    settings.target = self
-                    menu.addItem(settings)
-                    let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
-                    donate.target = self
-                    menu.addItem(donate)
-                    menu.addItem(.separator())
-                    menu.addItem(NSMenuItem(title: "Quit Ticklet", action: #selector(quit), keyEquivalent: "q"))
-                    createStatusItem(with: menu)
-                }
+                let menu = statusMenu ?? buildStatusMenu()
+                statusMenu = menu
+                createStatusItem(with: menu)
             } else {
                 removeStatusItem()
             }
@@ -219,7 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         // Ensure accessibility label is updated right away so menu shows a human-readable first item
-        updateAccessibilityMenuItem()    }
+        updateAccessibilityMenuItem()
+    }
 
     private func removeStatusItem() {
         if let si = statusItem {
@@ -239,12 +223,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateStatusIcon(isIdle: Bool) {
         guard let btn = statusItem?.button else { return }
-        if btn.image == nil {
-            if let img = makeStatusImage() {
-                img.isTemplate = true
-                btn.image = img
-            }
-        }
         // Use alpha to dim for idle; system tints template image to correct light/dark color automatically
         btn.alphaValue = isIdle ? 0.6 : 1.0
     }
@@ -252,19 +230,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var accessibilityMenuItem: NSMenuItem?
 
     private func updateAccessibilityMenuItem() {
-        let trusted = AXIsProcessTrusted()
-        if trusted {
+        if AXIsProcessTrusted() {
             accessibilityMenuItem?.isHidden = true
             accessibilityMenuItem?.isEnabled = false
-            accessibilityMenuItem?.title = "Accessibility: Enabled"
-            accessibilityMenuItem?.target = nil
-            accessibilityMenuItem?.action = nil
         } else {
             accessibilityMenuItem?.isHidden = false
             accessibilityMenuItem?.isEnabled = true
-            accessibilityMenuItem?.title = "Accessibility Access Required — Enable…"
-            accessibilityMenuItem?.target = self
-            accessibilityMenuItem?.action = #selector(openAccessibilityPreferences)
         }
     }
 
@@ -285,7 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Calls the system API that opens System Settings → Privacy → Accessibility
     /// (or shows the TCC prompt on older macOS).  Single entry-point for all grant flows.
     private func requestAccessibilityAccess() {
-        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        let options = [kAXTrustedCheckOptionPrompt: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
     }
 
@@ -313,23 +284,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         accessibilityPollTimer = timer
     }
 
+    // MARK: - Window management
+
+    private func bringToFront(_ windowController: NSWindowController) {
+        windowController.showWindow(nil)
+        windowController.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     @objc private func openLogsViewer() {
         guard let logger = logger else { return }
-        // Reuse existing window controller if present
-        if let existing = logViewerWindowController {
-            existing.showWindow(nil)
-            existing.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        } else {
-            let vc = LogViewerWindowController(logger: logger)
-            logViewerWindowController = vc
-            vc.showWindow(nil)
-            vc.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
-
-        // Refresh accessibility status when the user opens the logs menu/view
+        let vc = logViewerWindowController ?? LogViewerWindowController(logger: logger)
+        logViewerWindowController = vc
+        bringToFront(vc)
         updateAccessibilityMenuItem()
     }
 
@@ -341,32 +308,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func reloadLogs() {
-        // If the log viewer is open, tell it to refresh; otherwise open, then refresh
-        if let existing = logViewerWindowController {
-            existing.refresh()
-            existing.showWindow(nil)
-            existing.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        } else if let logger = logger {
-            let vc = LogViewerWindowController(logger: logger)
-            logViewerWindowController = vc
-            vc.showWindow(nil)
-            vc.window?.makeKeyAndOrderFront(nil)
-            vc.refresh()
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        guard let logger = logger else { return }
+        let vc = logViewerWindowController ?? LogViewerWindowController(logger: logger)
+        logViewerWindowController = vc
+        bringToFront(vc)
+        vc.refresh()
     }
 
     @objc private func openPreferences() {
         if preferencesWindowController == nil {
             preferencesWindowController = PreferencesWindowController()
         }
-        preferencesWindowController?.showWindow(nil)
-        preferencesWindowController?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        bringToFront(preferencesWindowController!)
     }
 
     // MARK: - NSMenuDelegate
+
     public func menuWillOpen(_ menu: NSMenu) {
         updateAccessibilityMenuItem()
     }
