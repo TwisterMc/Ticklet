@@ -40,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let aboutItem = NSMenuItem(title: "About \(appName)", action: #selector(openAboutPanel), keyEquivalent: "")
         aboutItem.target = self
         appMenu.addItem(aboutItem)
+        let checkUpdatesAppItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        checkUpdatesAppItem.target = self
+        appMenu.addItem(checkUpdatesAppItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Settings…", action: #selector(openPreferences), keyEquivalent: ",")
         appMenu.addItem(.separator())
@@ -115,6 +118,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // Update accessibility menu item visibility
             updateAccessibilityMenuItem()
 
+            // Silently check for updates on launch
+            UpdateChecker.shared.checkForUpdates(silentIfCurrent: true)
+
         } catch {
             print("Failed to initialize logger: \(error)")
         }
@@ -150,6 +156,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let about = NSMenuItem(title: "About", action: #selector(openAboutPanel), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
+
+        let checkUpdates = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        checkUpdates.target = self
+        menu.addItem(checkUpdates)
 
         let settings = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: "")
         settings.target = self
@@ -343,16 +353,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    @objc private func checkForUpdates() {
+        UpdateChecker.shared.checkForUpdates()
+    }
+
     @objc private func openAboutPanel() {
         let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.0.3"
-        let icon = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
-        icon.size = NSSize(width: 128, height: 128)
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationIcon: icon,
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [
             .applicationName: bundleDisplayName(),
             .applicationVersion: version,
             .version: "",
-        ])
+        ]
+        if let icon = NSApp.applicationIconImage {
+            options[.applicationIcon] = icon
+        }
+        NSApp.orderFrontStandardAboutPanel(options: options)
     }
 
     @objc private func quit() {
