@@ -362,11 +362,23 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             appIconCache[appName] = icon
             return icon
         }
-        // Use the generic application icon as a fallback
-        if let generic = NSImage(named: NSImage.applicationIconName) {
-            appIconCache[appName] = generic
-            return generic
+        // Search known application directories for the app bundle
+        let searchDirs = [
+            "/Applications",
+            "/System/Applications",
+            "/System/Applications/Utilities",
+            "/Applications/Utilities",
+            (NSHomeDirectory() as NSString).appendingPathComponent("Applications"),
+        ]
+        for dir in searchDirs {
+            let appPath = (dir as NSString).appendingPathComponent("\(appName).app")
+            if FileManager.default.fileExists(atPath: appPath) {
+                let icon = NSWorkspace.shared.icon(forFile: appPath)
+                appIconCache[appName] = icon
+                return icon
+            }
         }
+        // Generic app icon fallback
         if #available(macOS 12.0, *) {
             let generic = NSWorkspace.shared.icon(for: UTType.application)
             appIconCache[appName] = generic
