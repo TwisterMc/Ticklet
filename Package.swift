@@ -14,6 +14,10 @@ let package = Package(
             path: "Sources/Ticklet",
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
+            ],
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", "Sources/Ticklet/Info.plist"])
             ]
         ),
         .testTarget(

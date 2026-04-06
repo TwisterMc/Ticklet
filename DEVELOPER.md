@@ -37,14 +37,14 @@ Tests cover CSV logging behavior (reads, writes, append semantics) and core mana
   ```bash
   # build for the current host arch (x86_64 or arm64)
   swift build -c release --build-path .build-<arch>
-  ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+  ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
   ```
 
 - Example: locally building an Intel release on an Intel Mac (produce normalized Ticklet.app inside an arch-specific zip):
 
   ```bash
   swift build -c release --build-path .build-<arch>
-  ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+  ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
   # Normalize the .app (remove extended attributes, clear immutable flags, and set permissions)
   xattr -cr ./artifacts/Ticklet-<arch>.app || true
   # Remove any lingering com.apple.provenance xattr which can persist and trigger Finder errors
@@ -83,14 +83,14 @@ Use the packaging helper's `SIGN_IDENTITY` environment variable to sign builds, 
 
 ```bash
 # Ad-hoc sign (default when SIGN_IDENTITY not provided)
-./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
 
 # Explicit Developer ID signing
-SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
 
 # Sign with entitlements and extra codesign options (for notarization/hardened runtime)
 ENTITLEMENTS='resources/entitlements.plist' SIGN_OPTIONS='--options runtime --timestamp' \
-  SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app com.thomas.Ticklet
+  SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
 ```
 
 Note: the script will skip signing if `codesign` is not present on PATH; set `SIGN_IDENTITY` explicitly to `""` to avoid signing even when `codesign` is available.

@@ -354,11 +354,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openAboutPanel() {
-        let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.0.3"
         var options: [NSApplication.AboutPanelOptionKey: Any] = [
             .applicationName: bundleDisplayName(),
-            .applicationVersion: version,
-            .version: "",
         ]
         if let icon = NSApp.applicationIconImage {
             options[.applicationIcon] = icon
