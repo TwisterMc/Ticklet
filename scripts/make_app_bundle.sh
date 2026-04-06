@@ -59,6 +59,11 @@ fi
 cp "$SOURCE_PLIST" "$INFOPLIST"
 echo "Copied Info.plist from source"
 
+# Stamp CFBundleShortVersionString with the release version if provided (strip leading 'v')
+if [ -n "${APP_VERSION:-}" ]; then
+  /usr/bin/plutil -replace CFBundleShortVersionString -string "${APP_VERSION#v}" "$INFOPLIST"
+fi
+
 # Stamp CFBundleVersion with the build number if provided
 if [ -n "${APP_BUILD:-}" ]; then
   /usr/bin/plutil -replace CFBundleVersion -string "${APP_BUILD}" "$INFOPLIST"
