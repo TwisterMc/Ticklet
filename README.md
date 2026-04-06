@@ -107,6 +107,19 @@ ENTITLEMENTS='resources/entitlements.plist' SIGN_OPTIONS='--options runtime --ti
 
 ---
 
+## Releasing a new version
+
+1. Update the version string in `Info.plist` (e.g. `1.2.0`).
+2. Commit the change: `git commit -am "chore: bump version to v1.2.0"`
+3. Tag the commit: `git tag v1.2.0`
+4. Push both: `git push && git push --tags`
+
+Pushing a `v*` tag automatically triggers the GitHub Actions build workflow, which builds for both arm64 and x86_64 and creates a **draft release** with the zipped `.app` bundles attached. Review and publish the draft on the GitHub Releases page when ready.
+
+You can also trigger a build manually from the **Actions** tab without tagging.
+
+---
+
 ## Support & Feedback
 
 - Found a bug or want a feature (redaction, retention rules, or compacting logs)? Open an issue on the GitHub repo or email the maintainer.
