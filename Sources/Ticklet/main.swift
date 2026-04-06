@@ -230,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func makeStatusImage() -> NSImage? {
         if #available(macOS 11.0, *) {
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            let config = NSImage.SymbolConfiguration(scale: .medium).applying(NSImage.SymbolConfiguration(weight: .regular))
             return NSImage(systemSymbolName: "person.crop.circle.badge.clock", accessibilityDescription: "Ticklet")?.withSymbolConfiguration(config)
         } else {
             return nil
