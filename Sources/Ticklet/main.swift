@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 
+
 /// Helper to get app display name from bundle info, preferring CFBundleDisplayName over executable name
 private func bundleDisplayName() -> String {
     return (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
@@ -36,7 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu(title: appName)
         appMenuItem.submenu = appMenu
-        appMenu.addItem(withTitle: "About \(appName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: "About \(appName)", action: #selector(openAboutPanel), keyEquivalent: "")
+        aboutItem.target = self
+        appMenu.addItem(aboutItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Settings…", action: #selector(openPreferences), keyEquivalent: ",")
         appMenu.addItem(.separator())
@@ -144,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let about = NSMenuItem(title: "About", action: #selector(openAboutPage), keyEquivalent: "")
+        let about = NSMenuItem(title: "About", action: #selector(openAboutPanel), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
 
@@ -340,10 +343,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func openAboutPage() {
-        if let url = URL(string: "https://github.com/TwisterMc/Ticklet/") {
-            NSWorkspace.shared.open(url)
-        }
+    @objc private func openAboutPanel() {
+        let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0.0.3"
+        let icon = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
+        icon.size = NSSize(width: 128, height: 128)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationIcon: icon,
+            .applicationName: bundleDisplayName(),
+            .applicationVersion: version,
+            .version: "",
+        ])
     }
 
     @objc private func quit() {
