@@ -214,7 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func makeStatusImage() -> NSImage? {
         if #available(macOS 11.0, *) {
-            let config = NSImage.SymbolConfiguration(scale: .medium).applying(NSImage.SymbolConfiguration(weight: .regular))
+            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular, scale: .medium)
             return NSImage(systemSymbolName: "person.crop.circle.badge.clock", accessibilityDescription: "Ticklet")?.withSymbolConfiguration(config)
         } else {
             return nil
@@ -256,7 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Calls the system API that opens System Settings → Privacy → Accessibility
     /// (or shows the TCC prompt on older macOS).  Single entry-point for all grant flows.
     private func requestAccessibilityAccess() {
-        let options = [kAXTrustedCheckOptionPrompt: true] as CFDictionary
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
     }
 
@@ -348,6 +348,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    // MARK: - Settings API for PreferencesWindowController
+
+    func setRedactWindowTitles(_ redact: Bool) {
+        logger?.redactWindowTitles = redact
+    }
+
+    func setPollInterval(_ seconds: Double) {
+        tracker?.setPollInterval(seconds)
     }
 }
 

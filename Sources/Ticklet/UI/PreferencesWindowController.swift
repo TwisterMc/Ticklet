@@ -97,7 +97,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         let redact = (sender.state == .on)
         UserDefaults.standard.set(redact, forKey: "redactWindowTitles")
         if let app = NSApp.delegate as? AppDelegate {
-            app.logger?.redactWindowTitles = redact
+            app.setRedactWindowTitles(redact)
         }
     }
 
@@ -132,7 +132,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private func savePollInterval(_ seconds: Double) {
         UserDefaults.standard.set(seconds, forKey: "pollIntervalSeconds")
         if let app = NSApp.delegate as? AppDelegate {
-            app.tracker?.setPollInterval(seconds)
+            app.setPollInterval(seconds)
         }
     }
 }
