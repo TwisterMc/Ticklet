@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func createStatusItem(with menu: NSMenu) {
         if statusItem == nil {
-            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         }
         menu.delegate = self
         statusItem?.menu = menu
@@ -207,8 +207,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 btn.image = img
             }
             btn.imagePosition = .imageOnly
-            btn.bezelStyle = .texturedRounded
-            btn.isBordered = false
             // use alpha to indicate idle vs active; do not set contentTintColor so system uses the correct menu-bar color
             btn.alphaValue = 1.0
             btn.setAccessibilityLabel("Ticklet — activity tracking")
@@ -227,11 +225,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func makeStatusImage() -> NSImage? {
         if #available(macOS 11.0, *) {
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular, scale: .medium)
-            return NSImage(systemSymbolName: "person.crop.circle.badge.clock", accessibilityDescription: "Ticklet")?.withSymbolConfiguration(config)
-        } else {
-            return nil
+            return NSImage(systemSymbolName: "person.crop.circle.badge.clock", accessibilityDescription: "Ticklet")
         }
+        return nil
     }
 
     private func updateStatusIcon(isIdle: Bool) {
