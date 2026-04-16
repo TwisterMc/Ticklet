@@ -13,6 +13,27 @@ private class KeyboardAwareView: NSView {
     }
 }
 
+private final class HourSeparatorRowView: NSTableRowView {
+    var showsHourSeparator = false {
+        didSet {
+            if showsHourSeparator != oldValue {
+                needsDisplay = true
+            }
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard showsHourSeparator else { return }
+
+        let separatorY = isFlipped ? 0 : (bounds.height - 2)
+        let separatorRect = NSRect(x: 0, y: separatorY, width: bounds.width, height: 2)
+        NSColor.controlAccentColor.withAlphaComponent(0.7).setFill()
+        separatorRect.fill()
+    }
+}
+
 final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     private let tableView = NSTableView()
     private let scroll = NSScrollView()
@@ -307,8 +328,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
 
                 tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 6),
                 tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
-                tf.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 1),
-                tf.bottomAnchor.constraint(equalTo: cellView.bottomAnchor, constant: -1),
+                tf.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
             ])
 
             cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
@@ -325,14 +345,38 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         NSLayoutConstraint.activate([
             tf.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 6),
             tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
-            tf.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 1),
-            tf.bottomAnchor.constraint(equalTo: cellView.bottomAnchor, constant: -1),
+            tf.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
         ])
         cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
         return cellView
     }
 
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let identifier = NSUserInterfaceItemIdentifier("HourSeparatorRow")
+        let rowView = (tableView.makeView(withIdentifier: identifier, owner: self) as? HourSeparatorRowView) ?? HourSeparatorRowView()
+        rowView.identifier = identifier
+        rowView.showsHourSeparator = shouldShowHourSeparator(forRow: row)
+        return rowView
+    }
+
     // MARK: - App icon helpers
+
+    private func shouldShowHourSeparator(forRow row: Int) -> Bool {
+        guard row > 0, isSortedByStartTime else { return false }
+
+        let calendar = Calendar.current
+        let previousHour = calendar.component(.hour, from: entries[row - 1].startTime)
+        let currentHour = calendar.component(.hour, from: entries[row].startTime)
+        return previousHour != currentHour
+    }
+
+    private var isSortedByStartTime: Bool {
+        guard let sortDescriptor = tableView.sortDescriptors.first else {
+            return false
+        }
+
+        return sortDescriptor.key == "startTime"
+    }
 
     private func formatDuration(_ seconds: Int) -> String {
         var s = seconds
