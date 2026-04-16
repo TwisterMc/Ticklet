@@ -26,3 +26,4 @@ tmp_install/
 .swiftpm/
 **/xcuserdata/
 **/*.xcuserdatad/
+.idea/*

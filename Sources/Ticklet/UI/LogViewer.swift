@@ -64,13 +64,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     // Cache app icons by app name for performance
     private var appIconCache: [String: NSImage] = [:]
 
-    // Shared formatter — DateFormatter init is expensive, allocate once
-    private let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f
-    }()
-
     init(logger: CSVLogger) {
         self.logger = logger
         let defaultRect = NSRect(x: 0, y: 0, width: 800, height: 600)
@@ -227,7 +220,8 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         col1.title = "Time"
         col1.width = 200
         // sort by startTime (newest first by default)
-        col1.sortDescriptorPrototype = NSSortDescriptor(key: "startTime", ascending: false)
+        let defaultTimeSortDescriptor = NSSortDescriptor(key: "startTime", ascending: false)
+        col1.sortDescriptorPrototype = defaultTimeSortDescriptor
         tableView.addTableColumn(col1)
 
         let col2 = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("duration"))
@@ -258,6 +252,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         tableView.dataSource = self
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.rowHeight = 22
+        tableView.sortDescriptors = [defaultTimeSortDescriptor]
         tableView.setAccessibilityLabel("Activity log entries")
     }
 
@@ -305,7 +300,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         let e = entries[row]
         let colId = column.identifier
 
-        // Attempt to reuse an existing cell for this column
         if let cell = tableView.makeView(withIdentifier: colId, owner: self) as? NSTableCellView {
             switch colId.rawValue {
             case "time":
@@ -315,22 +309,12 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             case "app":
                 cell.textField?.stringValue = e.appName
                 cell.imageView?.image = appIcon(for: e.appName)
-            default: // "window"
+            default:
                 cell.textField?.stringValue = e.windowTitle
-        let id = tableColumn!.identifier.rawValue
-        let text: String
-        if id == "time" {
-            text = timeFormatter.string(from: e.startTime)
-        } else if id == "duration" {
-            if let d = e.durationSeconds {
-                text = formatDuration(Int(d))
-            } else {
-                text = ""
             }
             return cell
         }
 
-        // No reusable cell — build one for this column type
         let cell = NSTableCellView()
         cell.identifier = colId
 
@@ -341,7 +325,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             iv.image = appIcon(for: e.appName)
             iv.setContentHuggingPriority(.required, for: .horizontal)
             iv.setContentCompressionResistancePriority(.required, for: .horizontal)
-            // Icon is decorative — the text field already conveys the app name
             iv.setAccessibilityHidden(true)
             cell.imageView = iv
             cell.addSubview(iv)
@@ -360,20 +343,19 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
                 iv.heightAnchor.constraint(equalToConstant: 16),
                 tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 6),
                 tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
-                tf.topAnchor.constraint(equalTo: cell.topAnchor, constant: 1),
-                tf.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -1),
-                tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
-                tf.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                tf.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             ])
             return cell
         }
 
-        // Text-only columns
         let text: String
         switch colId.rawValue {
-        case "time":     text = timeFormatter.string(from: e.startTime)
-        case "duration": text = e.durationSeconds.map { formatDuration(Int($0)) } ?? ""
-        default:         text = e.windowTitle
+        case "time":
+            text = timeFormatter.string(from: e.startTime)
+        case "duration":
+            text = e.durationSeconds.map { formatDuration(Int($0)) } ?? ""
+        default:
+            text = e.windowTitle
         }
 
         let tf = NSTextField(labelWithString: text)
@@ -386,11 +368,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         NSLayoutConstraint.activate([
             tf.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
             tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
-            tf.topAnchor.constraint(equalTo: cell.topAnchor, constant: 1),
-            tf.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -1),
-            tf.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 6),
-            tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
-            tf.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+            tf.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
         ])
         return cell
     }
@@ -512,7 +490,11 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     private func restoreSortDescriptor() {
-        guard let dict = UserDefaults.standard.dictionary(forKey: sortDefaultsKey), let key = dict["key"] as? String, let ascending = dict["ascending"] as? Bool else { return }
+        guard let dict = UserDefaults.standard.dictionary(forKey: sortDefaultsKey), let key = dict["key"] as? String, let ascending = dict["ascending"] as? Bool else {
+            tableView.sortDescriptors = [NSSortDescriptor(key: "startTime", ascending: false)]
+            sortEntries()
+            return
+        }
         let sd = NSSortDescriptor(key: key, ascending: ascending)
         tableView.sortDescriptors = [sd]
         sortEntries()

@@ -10,8 +10,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let frameDefaultsKey = "PreferencesWindowFrame"
 
     init() {
-        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 150)
-        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 154)
+        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 170)
         let window = NSWindow(contentRect: defaultRect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Settings"
@@ -28,14 +27,14 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         guard let content = window?.contentView else { return }
 
         // "Redact window titles" toggle (top row)
-        redactCheckbox.frame = NSRect(x: 20, y: 96, width: 380, height: 18)
+        redactCheckbox.frame = NSRect(x: 20, y: 112, width: 380, height: 18)
         redactCheckbox.target = self
         redactCheckbox.action = #selector(toggleRedactWindowTitles(_:))
         content.addSubview(redactCheckbox)
         let redact = UserDefaults.standard.bool(forKey: "redactWindowTitles")
         redactCheckbox.state = redact ? .on : .off
 
-        checkbox.frame = NSRect(x: 20, y: 98, width: 380, height: 18)
+        checkbox.frame = NSRect(x: 20, y: 82, width: 380, height: 18)
         checkbox.target = self
         checkbox.action = #selector(toggleStatusItem(_:))
         content.addSubview(checkbox)
@@ -43,7 +42,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         let show = UserDefaults.standard.object(forKey: "showStatusItem") as? Bool ?? true
         checkbox.state = show ? .on : .off
 
-        timeFormatCheckbox.frame = NSRect(x: 20, y: 68, width: 380, height: 18)
+        timeFormatCheckbox.frame = NSRect(x: 20, y: 52, width: 380, height: 18)
         timeFormatCheckbox.target = self
         timeFormatCheckbox.action = #selector(toggleTimeFormat(_:))
         content.addSubview(timeFormatCheckbox)
@@ -52,17 +51,17 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         timeFormatCheckbox.state = use12Hour ? .on : .off
 
         // Poll interval controls
-        pollLabel.frame = NSRect(x: 20, y: 28, width: 200, height: 18)
+        pollLabel.frame = NSRect(x: 20, y: 18, width: 200, height: 18)
         content.addSubview(pollLabel)
 
-        pollField.frame = NSRect(x: 220, y: 24, width: 50, height: 22)
+        pollField.frame = NSRect(x: 220, y: 14, width: 50, height: 22)
         pollField.isEditable = true
         pollField.alignment = .right
         pollField.target = self
         pollField.action = #selector(pollFieldChanged(_:))
         content.addSubview(pollField)
 
-        pollStepper.frame = NSRect(x: 276, y: 24, width: 18, height: 22)
+        pollStepper.frame = NSRect(x: 276, y: 14, width: 18, height: 22)
         pollStepper.minValue = 0.1
         pollStepper.maxValue = 60.0
         pollStepper.increment = 0.5
