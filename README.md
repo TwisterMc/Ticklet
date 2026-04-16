@@ -20,7 +20,7 @@ This README is for end users — concise install and usage instructions are belo
 - Window titles may contain sensitive information (document names, emails, etc.). You should:
   - Review the data stored in `~/Library/Logs/Ticklet/` and delete files you don’t want to keep
   - Use the Preferences to disable the status item if you prefer minimal UI
-  - Contact support if you want a data-redaction option (available upon request)
+  - Use the **Only log app names (hide window titles)** preference if you do not want window titles written to new log entries
 
 ---
 
@@ -54,10 +54,13 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
 ## Using the app
 
 - Menu Bar: Ticklet can run with an optional status item (icon) — toggle this in Preferences.
-- Sampling interval: set the recording interval (seconds) in **Preferences** — default is 1 second (supported range: 1–60). Higher frequency produces more detailed logs but may increase disk usage and CPU.
+- Sampling interval: set the recording interval (seconds) in **Preferences** — default is 1 second (supported range: 0.1–60).
+- Privacy: enable **Only log app names (hide window titles)** in **Preferences** if you want new log entries to omit window titles.
+- Time display: enable **Use 12-hour time in app display** in **Preferences** if you prefer AM/PM formatting in the app UI.
 - Logs Viewer: choose **View Logs…** from the Ticklet menu to open the Log Viewer window.
   - Use the date controls (Back / Forward / Today) to navigate days.
   - Click column headers to sort entries; sorting is remembered.
+  - When sorted by **Time**, the viewer draws a separator between hour blocks for easier scanning.
   - The **Duration** column shows a compact, human-friendly format (e.g., `30s`, `1m 30s`, `1h 30s`); the underlying CSV stores duration as seconds.
   - Each row shows the app name **with its icon** (when available) for easier scanning.
   - Use the **Refresh** button to reload the current day's logs, or press **⌘R** (Reload Logs) — it performs the same refresh action.
@@ -86,7 +89,7 @@ If you find Ticklet useful and would like to support its development, consider m
 
 (Developer note: More technical signing and notarization guidance is available in `DEVELOPER.md`.)
 
-## Packaging & Signing (developer note) 🔐
+## Packaging & Signing (developer note)
 
 - For local builds the included packaging helper (`./scripts/make_app_bundle.sh`) will perform an **ad‑hoc sign by default** so the produced `.app` behaves better when double‑clicked for testing (you do not need to set `SIGN_IDENTITY` to get an ad‑hoc sign).
 
