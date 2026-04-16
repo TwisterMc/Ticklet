@@ -82,7 +82,16 @@ final class CSVLogger: LogWriter {
     func readEntries(for date: Date) throws -> [ActivityEntry] {
         let filename = "ticklet-\(fileDateFormatter.string(from: date)).csv"
         let fileURL = directory.appendingPathComponent(filename)
-        let data = try String(contentsOf: fileURL, encoding: .utf8)
+        let data: String
+        do {
+            data = try String(contentsOf: fileURL, encoding: .utf8)
+        } catch {
+            // Missing file is expected for dates with no activity yet.
+            if let cocoaError = error as? CocoaError, cocoaError.code == .fileReadNoSuchFile {
+                return []
+            }
+            throw error
+        }
         var entries: [ActivityEntry] = []
         let lines = data.components(separatedBy: CharacterSet.newlines)
         

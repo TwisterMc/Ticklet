@@ -16,4 +16,13 @@ final class CSVLoggerTests2: XCTestCase {
         XCTAssertEqual(read[0].appName, "Figma")
         XCTAssertEqual(read[0].windowTitle, "Design, \"Round 1\"")
     }
+
+    func testReadMissingFileReturnsEmpty() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("ticklet-test-\(UUID().uuidString)")
+        let logger = try CSVLogger(logsDirectory: tempDir)
+
+        let dateWithoutFile = Date()
+        let read = try logger.readEntries(for: dateWithoutFile)
+        XCTAssertTrue(read.isEmpty)
+    }
 }
