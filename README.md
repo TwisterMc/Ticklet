@@ -93,17 +93,30 @@ If you find Ticklet useful and would like to support its development, consider m
 - To explicitly perform ad‑hoc signing (testing):
 
 ```bash
-./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app com.thomas.Ticklet
+./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app
 ```
 
 - To sign for distribution, set `SIGN_IDENTITY` to your Developer ID identity. You can also provide `ENTITLEMENTS` and `SIGN_OPTIONS` for hardened runtime / notarization, for example:
 
 ```bash
 ENTITLEMENTS='resources/entitlements.plist' SIGN_OPTIONS='--options runtime --timestamp' \
-  SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app com.thomas.Ticklet
+  SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app
 ```
 
 - For full signing & notarization instructions (CI integration, exporting `.p12`, verifying with `codesign -dvvv` and `spctl`), see `DEVELOPER.md`.
+
+---
+
+## Releasing a new version
+
+1. Update the version in `Sources/Ticklet/Info.plist` (`CFBundleShortVersionString`).
+2. Commit: `git commit -am "chore: bump version to 1.2.0"`
+3. Tag: `git tag v1.2.0`
+4. Push: `git push && git push --tags`
+
+Pushing a `v*` tag automatically triggers the GitHub Actions build workflow, which builds for both arm64 and x86_64 and creates a **draft release** with the zipped `.app` bundles attached. Review and publish the draft on the GitHub Releases page when ready.
+
+You can also trigger a build manually from the **Actions** tab without tagging.
 
 ---
 

@@ -2,6 +2,7 @@ import AppKit
 
 final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let checkbox = NSButton(checkboxWithTitle: "Show status item in menu bar", target: nil, action: nil)
+    private let redactCheckbox = NSButton(checkboxWithTitle: "Only log app names (hide window titles)", target: nil, action: nil)
     private let timeFormatCheckbox = NSButton(checkboxWithTitle: "Use 12-hour time in app display", target: nil, action: nil)
     private let pollLabel = NSTextField(labelWithString: "Sampling interval (seconds):")
     private let pollField = NSTextField(string: "")
@@ -9,10 +10,11 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let frameDefaultsKey = "PreferencesWindowFrame"
 
     init() {
+        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 150)
         let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 154)
         let window = NSWindow(contentRect: defaultRect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = "Preferences"
+        window.title = "Settings"
         window.delegate = self
         restoreWindowFrame()
         setupUI()
@@ -24,6 +26,15 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     private func setupUI() {
         guard let content = window?.contentView else { return }
+
+        // "Redact window titles" toggle (top row)
+        redactCheckbox.frame = NSRect(x: 20, y: 96, width: 380, height: 18)
+        redactCheckbox.target = self
+        redactCheckbox.action = #selector(toggleRedactWindowTitles(_:))
+        content.addSubview(redactCheckbox)
+        let redact = UserDefaults.standard.bool(forKey: "redactWindowTitles")
+        redactCheckbox.state = redact ? .on : .off
+
         checkbox.frame = NSRect(x: 20, y: 98, width: 380, height: 18)
         checkbox.target = self
         checkbox.action = #selector(toggleStatusItem(_:))
@@ -92,6 +103,14 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         UserDefaults.standard.set(s, forKey: frameDefaultsKey)
     }
 
+    @objc private func toggleRedactWindowTitles(_ sender: NSButton) {
+        let redact = (sender.state == .on)
+        UserDefaults.standard.set(redact, forKey: "redactWindowTitles")
+        if let app = NSApp.delegate as? AppDelegate {
+            app.setRedactWindowTitles(redact)
+        }
+    }
+
     @objc private func toggleStatusItem(_ sender: NSButton) {
         let show = (sender.state == .on)
         UserDefaults.standard.set(show, forKey: "showStatusItem")
@@ -128,7 +147,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private func savePollInterval(_ seconds: Double) {
         UserDefaults.standard.set(seconds, forKey: "pollIntervalSeconds")
         if let app = NSApp.delegate as? AppDelegate {
-            app.tracker?.setPollInterval(seconds)
+            app.setPollInterval(seconds)
         }
     }
 }

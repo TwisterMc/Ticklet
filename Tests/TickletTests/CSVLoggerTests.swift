@@ -1,7 +1,7 @@
 import XCTest
 @testable import Ticklet
 
-final class CSVLoggerTests2: XCTestCase {
+final class CSVLoggerTests: XCTestCase {
     func testWriteAndReadRoundTrip() throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("ticklet-test-\(UUID().uuidString)")
         let logger = try CSVLogger(logsDirectory: tempDir)

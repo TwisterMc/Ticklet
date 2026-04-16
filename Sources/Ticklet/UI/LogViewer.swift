@@ -4,7 +4,21 @@ import UniformTypeIdentifiers
 // Custom view to handle keyboard shortcuts
 private class KeyboardAwareView: NSView {
     var keyHandler: ((NSEvent) -> Bool)?
-    
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        // This view is a structural container — hide it from the accessibility tree
+        // so VoiceOver navigates directly to the controls it contains.
+        setAccessibilityElement(false)
+        setAccessibilityRole(.group)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setAccessibilityElement(false)
+        setAccessibilityRole(.group)
+    }
+
     override func keyDown(with event: NSEvent) {
         if let handler = keyHandler, handler(event) {
             return
@@ -50,10 +64,12 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     // Cache app icons by app name for performance
     private var appIconCache: [String: NSImage] = [:]
 
-    // History for back/forward navigation (stores startOfDay dates)
-    private var history: [Date] = []
-    private var historyIndex: Int = -1
-    // ...existing code...
+    // Shared formatter — DateFormatter init is expensive, allocate once
+    private let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
 
     init(logger: CSVLogger) {
         self.logger = logger
@@ -73,9 +89,8 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         )
         // initialize history with today
         let today = Calendar.current.startOfDay(for: Date())
-        pushToHistory(today)
         datePicker.dateValue = today
-        load(date: today, recordHistory: false)
+        load(date: today)
         // restore any previously saved sort descriptor
         restoreSortDescriptor()
         // Warm up app icon cache for visible entries
@@ -108,7 +123,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         window.contentView = contentView
         let content = contentView
 
-        // ...existing code...
         if let backImage = NSImage(systemSymbolName: "arrowshape.backward.fill", accessibilityDescription: "Back") {
             backImage.isTemplate = true
             backButton.image = backImage
@@ -122,6 +136,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             backButton.target = self
             backButton.action = #selector(goBack)
             backButton.toolTip = "Back (previous date)"
+            backButton.setAccessibilityLabel("Previous day")
             content.addSubview(backButton)
         } else {
             // Fallback to text if SF Symbol not available
@@ -133,6 +148,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             backButton.target = self
             backButton.action = #selector(goBack)
             backButton.toolTip = "Back (previous date)"
+            backButton.setAccessibilityLabel("Previous day")
             content.addSubview(backButton)
         }
 
@@ -149,6 +165,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             forwardButton.target = self
             forwardButton.action = #selector(goForward)
             forwardButton.toolTip = "Forward (next date)"
+            forwardButton.setAccessibilityLabel("Next day")
             content.addSubview(forwardButton)
         } else {
             forwardButton.title = "▶"
@@ -159,6 +176,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             forwardButton.target = self
             forwardButton.action = #selector(goForward)
             forwardButton.toolTip = "Forward (next date)"
+            forwardButton.setAccessibilityLabel("Next day")
             content.addSubview(forwardButton)
         }
 
@@ -171,6 +189,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         todayButton.target = self
         todayButton.action = #selector(goToday)
         todayButton.toolTip = "Go to today"
+        todayButton.setAccessibilityLabel("Go to today")
         content.addSubview(todayButton)
 
         datePicker.datePickerStyle = .textFieldAndStepper
@@ -180,6 +199,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         datePicker.target = self
         datePicker.action = #selector(dateChanged)
         datePicker.dateValue = Date()
+        datePicker.setAccessibilityLabel("Log date")
         content.addSubview(datePicker)
 
         // Refresh button to reload current day's logs
@@ -191,6 +211,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         refreshButton.target = self
         refreshButton.action = #selector(refreshLogs)
         refreshButton.toolTip = "Reload logs for selected date"
+        refreshButton.setAccessibilityLabel("Refresh logs")
         content.addSubview(refreshButton)
 
         scroll.documentView = tableView
@@ -237,6 +258,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         tableView.dataSource = self
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.rowHeight = 22
+        tableView.setAccessibilityLabel("Activity log entries")
     }
 
     @objc private func dateChanged() {
@@ -244,7 +266,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     @objc private func refreshLogs() {
-        load(date: datePicker.dateValue, recordHistory: false)
+        load(date: datePicker.dateValue)
     }
 
     /// Public refresh entry point (usable from menu actions)
@@ -252,12 +274,9 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         refreshLogs()
     }
 
-    public func load(date: Date, recordHistory: Bool = true) {
+    public func load(date: Date) {
         // normalize to start of day for consistent file lookup
         let keyDate = Calendar.current.startOfDay(for: date)
-        if recordHistory {
-            pushToHistory(keyDate)
-        }
         do {
             entries = try logger.readEntries(for: keyDate)
             // Apply any current sort descriptor and reload
@@ -282,7 +301,22 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard let column = tableColumn else { return nil }
         let e = entries[row]
+        let colId = column.identifier
+
+        // Attempt to reuse an existing cell for this column
+        if let cell = tableView.makeView(withIdentifier: colId, owner: self) as? NSTableCellView {
+            switch colId.rawValue {
+            case "time":
+                cell.textField?.stringValue = timeFormatter.string(from: e.startTime)
+            case "duration":
+                cell.textField?.stringValue = e.durationSeconds.map { formatDuration(Int($0)) } ?? ""
+            case "app":
+                cell.textField?.stringValue = e.appName
+                cell.imageView?.image = appIcon(for: e.appName)
+            default: // "window"
+                cell.textField?.stringValue = e.windowTitle
         let id = tableColumn!.identifier.rawValue
         let text: String
         if id == "time" {
@@ -293,62 +327,72 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             } else {
                 text = ""
             }
-        } else if id == "app" {
-            text = e.appName
-        } else {
-            text = e.windowTitle
+            return cell
         }
-        // Use a view-based cell for more reliable styling across appearances
-        let cellView = NSTableCellView()
 
-        if id == "app" {
-            // Create an image view for the app icon and a text field for the app name
+        // No reusable cell — build one for this column type
+        let cell = NSTableCellView()
+        cell.identifier = colId
+
+        if colId.rawValue == "app" {
             let iv = NSImageView()
             iv.translatesAutoresizingMaskIntoConstraints = false
             iv.imageScaling = .scaleProportionallyDown
-            iv.image = appIcon(for: text)
+            iv.image = appIcon(for: e.appName)
             iv.setContentHuggingPriority(.required, for: .horizontal)
             iv.setContentCompressionResistancePriority(.required, for: .horizontal)
-            iv.wantsLayer = false
-            cellView.addSubview(iv)
+            // Icon is decorative — the text field already conveys the app name
+            iv.setAccessibilityHidden(true)
+            cell.imageView = iv
+            cell.addSubview(iv)
 
-            let tf = NSTextField(labelWithString: text)
+            let tf = NSTextField(labelWithString: e.appName)
             tf.translatesAutoresizingMaskIntoConstraints = false
             tf.textColor = .labelColor
-            tf.isBezeled = false
-            tf.drawsBackground = false
             tf.lineBreakMode = .byTruncatingTail
-            cellView.addSubview(tf)
+            cell.textField = tf
+            cell.addSubview(tf)
 
             NSLayoutConstraint.activate([
-                iv.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 6),
-                iv.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                iv.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+                iv.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
                 iv.widthAnchor.constraint(equalToConstant: 16),
                 iv.heightAnchor.constraint(equalToConstant: 16),
-
                 tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 6),
+                tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                tf.topAnchor.constraint(equalTo: cell.topAnchor, constant: 1),
+                tf.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -1),
                 tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
                 tf.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
             ])
+            return cell
+        }
 
-            cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
-            return cellView
+        // Text-only columns
+        let text: String
+        switch colId.rawValue {
+        case "time":     text = timeFormatter.string(from: e.startTime)
+        case "duration": text = e.durationSeconds.map { formatDuration(Int($0)) } ?? ""
+        default:         text = e.windowTitle
         }
 
         let tf = NSTextField(labelWithString: text)
         tf.translatesAutoresizingMaskIntoConstraints = false
         tf.textColor = .labelColor
-        tf.isBezeled = false
-        tf.drawsBackground = false
         tf.lineBreakMode = .byTruncatingTail
-        cellView.addSubview(tf)
+        cell.textField = tf
+        cell.addSubview(tf)
+
         NSLayoutConstraint.activate([
+            tf.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+            tf.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+            tf.topAnchor.constraint(equalTo: cell.topAnchor, constant: 1),
+            tf.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -1),
             tf.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 6),
             tf.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -6),
             tf.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
         ])
-        cellView.identifier = NSUserInterfaceItemIdentifier(id + "Cell")
-        return cellView
+        return cell
     }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
@@ -398,11 +442,23 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             appIconCache[appName] = icon
             return icon
         }
-        // Use the generic application icon as a fallback
-        if let generic = NSImage(named: NSImage.applicationIconName) {
-            appIconCache[appName] = generic
-            return generic
+        // Search known application directories for the app bundle
+        let searchDirs = [
+            "/Applications",
+            "/System/Applications",
+            "/System/Applications/Utilities",
+            "/Applications/Utilities",
+            (NSHomeDirectory() as NSString).appendingPathComponent("Applications"),
+        ]
+        for dir in searchDirs {
+            let appPath = (dir as NSString).appendingPathComponent("\(appName).app")
+            if FileManager.default.fileExists(atPath: appPath) {
+                let icon = NSWorkspace.shared.icon(forFile: appPath)
+                appIconCache[appName] = icon
+                return icon
+            }
         }
+        // Generic app icon fallback
         if #available(macOS 12.0, *) {
             let generic = NSWorkspace.shared.icon(for: UTType.application)
             appIconCache[appName] = generic
@@ -413,8 +469,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             return generic
         }
     }
-
-    // MARK: - Navigation
 
     // MARK: - Sorting
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
@@ -463,22 +517,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         tableView.sortDescriptors = [sd]
         sortEntries()
     }
-    private func pushToHistory(_ date: Date) {
-        // collapse any forward history and append
-        if historyIndex < history.count - 1 {
-            history = Array(history.prefix(upTo: historyIndex + 1))
-        }
-        // avoid duplicate consecutive entries
-        if let last = history.last, Calendar.current.isDate(last, inSameDayAs: date) {
-            history[history.count - 1] = date
-            historyIndex = history.count - 1
-            return
-        }
-        history.append(date)
-        historyIndex = history.count - 1
-        updateNavigationButtons()
-    }
-
     private func updateNavigationButtons() {
         let today = Calendar.current.startOfDay(for: Date())
         let selected = Calendar.current.startOfDay(for: datePicker.dateValue)
@@ -502,7 +540,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         let current = datePicker.dateValue
         if let prev = Calendar.current.date(byAdding: .day, value: -1, to: current) {
             datePicker.dateValue = prev
-            load(date: prev, recordHistory: false)
+            load(date: prev)
         }
     }
 
@@ -514,7 +552,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             // Prevent going into future beyond today
             if nextStart <= today {
                 datePicker.dateValue = next
-                load(date: next, recordHistory: false)
+                load(date: next)
             }
         }
     }

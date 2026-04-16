@@ -1,6 +1,9 @@
 name: Build & Release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -24,10 +27,10 @@ jobs:
           - arch: x86_64
             os: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Cache Swift build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.3
         with:
           path: |
             .build
@@ -110,27 +113,11 @@ jobs:
           swift build -c release --build-path .build-${{ matrix.arch }} \
             -Xswiftc -O -Xswiftc -whole-module-optimization
 
-      - name: Set version for packaging
-        if: steps.check.outputs.skipping == 'false'
-        id: version
-        run: |
-          # Use input tag if provided, otherwise check for git tags, fall back to 0.0.2
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            VERSION="${{ github.event.inputs.tag }}"
-            VERSION="${VERSION#v}"  # strip leading 'v'
-          else
-            VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.3")
-          fi
-          BUILD="${{ github.run_number }}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "build=$BUILD" >> $GITHUB_OUTPUT
-          echo "Using version: $VERSION, build: $BUILD"
-
       - name: Create .app bundle
         if: steps.check.outputs.skipping == 'false'
         env:
-          APP_VERSION: ${{ steps.version.outputs.version }}
-          APP_BUILD: ${{ steps.version.outputs.build }}
+          APP_BUILD: ${{ github.run_number }}
+          APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           set -e
           # locate built executable (path varies by build-path)
@@ -141,17 +128,7 @@ jobs:
           # Create an arch-specific temp app bundle
           TMP_DIR=./artifacts/${{ matrix.arch }}
           mkdir -p "$TMP_DIR"
-          ./scripts/make_app_bundle.sh "$EXEC" "$TMP_DIR/Ticklet.app" com.thomas.Ticklet
-          # Normalize the staged Ticklet.app to remove lingering xattrs/flags that can cause Finder to skip items
-          echo "Normalizing staged Ticklet.app: removing xattrs and clearing flags"
-          if command -v xattr >/dev/null 2>&1; then
-            xattr -cr "$TMP_DIR/Ticklet.app" || true
-            xattr -dr com.apple.provenance "$TMP_DIR/Ticklet.app" || true
-          fi
-          if command -v chflags >/dev/null 2>&1; then
-            chflags -R nouchg "$TMP_DIR/Ticklet.app" || true
-          fi
-          chmod -R u+rwX "$TMP_DIR/Ticklet.app" || true
+          ./scripts/make_app_bundle.sh "$EXEC" "$TMP_DIR/Ticklet.app"
           # Verify the staged zip can be copied (simulate an install). This helps catch Finder-skipped items early.
           echo "Running packaging verification (simulate install)"
           VERIFY_TMP=$(mktemp -d)
@@ -186,7 +163,7 @@ jobs:
 
       - name: Upload artifacts
         if: steps.check.outputs.skipping == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: Ticklet-${{ matrix.arch }}.zip
           path: ./artifacts/Ticklet-${{ matrix.arch }}.zip
@@ -196,21 +173,19 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Download x86_64 artifact (if any)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.3.0
         with:
           name: Ticklet-x86_64.zip
           path: ./downloads/x86_64
-          if-no-files-found: ignore
 
       - name: Download arm64 artifact (if any)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.3.0
         with:
           name: Ticklet-arm64.zip
           path: ./downloads/arm64
-          if-no-files-found: ignore
 
       - name: List available artifacts
         run: |
@@ -223,19 +198,20 @@ jobs:
       - name: Determine release tag
         id: tag
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
           else
-            T="auto-${{ github.run_id }}"
-            echo "tag=$T" >> $GITHUB_OUTPUT
+            echo "tag=auto-${{ github.run_id }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Draft Release and upload assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2.3.2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: "Ticklet ${{ steps.tag.outputs.tag }}"
-          body: "Automated build artifacts for ${{ steps.tag.outputs.tag }}."
+          body: "Download the zip for your Mac's architecture (arm64 for Apple Silicon, x86_64 for Intel), unzip, and move Ticklet.app to /Applications."
           draft: true
           prerelease: true
           files: |

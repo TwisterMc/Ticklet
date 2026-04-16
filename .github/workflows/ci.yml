@@ -10,15 +10,15 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      
+      - uses: actions/checkout@v4.2.2
+
       - name: Cache Swift build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.3
         with:
           path: |
             .build
             ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-spm-
       

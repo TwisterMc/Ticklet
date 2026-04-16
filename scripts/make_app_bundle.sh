@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # make_app_bundle.sh
-# Usage: ./scripts/make_app_bundle.sh <path-to-executable> [output-app-path] [bundle-id]
-# Example: ./scripts/make_app_bundle.sh .build/x86_64-apple-macosx/debug/Ticklet ./Ticklet.app com.thomas.Ticklet
+# Usage: ./scripts/make_app_bundle.sh <path-to-executable> [output-app-path]
+# Example: ./scripts/make_app_bundle.sh .build/x86_64-apple-macosx/debug/Ticklet ./Ticklet.app
+# Bundle ID and version are read from Sources/Ticklet/Info.plist — edit that file to change them.
 
 EXEC_PATH="$1"
 OUT_APP_PATH="${2:-./Ticklet.app}"
-BUNDLE_ID="${3:-com.yourname.Ticklet}"
 # Prefer the repo asset at Assets/AppIcon.icns when present; do not use a passed icon path
 if [ -f "./Assets/AppIcon.icns" ]; then
   ICON_PATH="./Assets/AppIcon.icns"
@@ -22,17 +22,15 @@ if [ ! -f "$EXEC_PATH" ]; then
 fi
 
 EXEC_BASENAME=$(basename "$EXEC_PATH")
-APP_NAME=$(basename "$OUT_APP_PATH" .app)
-
-# Versioning: allow callers to override the app version and build via env vars
-# Default to the next release version
-APP_VERSION="${APP_VERSION:-0.0.3}"
-APP_BUILD="${APP_BUILD:-0}"
 
 CONTENTS="$OUT_APP_PATH/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 INFOPLIST="$CONTENTS/Info.plist"
+
+# Locate the source Info.plist — canonical location is Sources/Ticklet/Info.plist
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SOURCE_PLIST="$SCRIPT_DIR/../Sources/Ticklet/Info.plist"
 
 echo "Creating app bundle at: $OUT_APP_PATH"
 rm -rf "$OUT_APP_PATH"
@@ -53,51 +51,24 @@ fi
 cp "$EXEC_PATH" "$MACOS/$EXEC_BASENAME"
 chmod +x "$MACOS/$EXEC_BASENAME"
 
-# Create a minimal Info.plist
-cat > "$INFOPLIST" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleExecutable</key>
-  <string>$EXEC_BASENAME</string>
-  <key>CFBundleDisplayName</key>
-  <string>$EXEC_BASENAME</string>
-  <key>CFBundleIdentifier</key>
-  <string>$BUNDLE_ID</string>
-  <key>CFBundleName</key>
-  <string>$EXEC_BASENAME</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleVersion</key>
-  <string>${APP_BUILD}</string>
-  <key>CFBundleShortVersionString</key>
-  <string>${APP_VERSION}</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>15.0</string>
-</dict>
-</plist>
-PLIST
-
-# If an icon was copied into Resources, insert CFBundleIconFile into Info.plist
-if [ -n "${ICON_BASENAME:-}" ]; then
-  ICON_NAME="${ICON_BASENAME%.*}"
-  echo "Adding CFBundleIconFile=$ICON_NAME to Info.plist"
-  # Try using plutil to insert; if it fails, fallback to awk insertion before </dict>
-  if /usr/bin/plutil -insert CFBundleIconFile -string "$ICON_NAME" "$INFOPLIST" >/dev/null 2>&1; then
-    :
-  else
-    tmp=$(mktemp)
-    awk -v key="$ICON_NAME" '{
-      if ($0 ~ /<\/dict>/ && !done) {
-        print "  <key>CFBundleIconFile</key>"
-        print "  <string>" key "</string>"
-        done=1
-      }
-      print $0
-    }' "$INFOPLIST" > "$tmp" && mv "$tmp" "$INFOPLIST"
-  fi
+# Copy source Info.plist
+if [ ! -f "$SOURCE_PLIST" ]; then
+  echo "Error: Info.plist not found at $SOURCE_PLIST" >&2
+  exit 1
 fi
+cp "$SOURCE_PLIST" "$INFOPLIST"
+echo "Copied Info.plist from source"
+
+# Stamp CFBundleShortVersionString with the release version if provided (strip leading 'v')
+if [ -n "${APP_VERSION:-}" ]; then
+  /usr/bin/plutil -replace CFBundleShortVersionString -string "${APP_VERSION#v}" "$INFOPLIST"
+fi
+
+# Stamp CFBundleVersion with the build number if provided
+if [ -n "${APP_BUILD:-}" ]; then
+  /usr/bin/plutil -replace CFBundleVersion -string "${APP_BUILD}" "$INFOPLIST"
+fi
+
 
 # Normalize permissions/attributes so the resulting .app can be moved/installed without Finder permission errors
 # - remove extended attributes (quarantine)
