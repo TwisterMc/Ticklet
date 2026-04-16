@@ -24,6 +24,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     private var entries: [ActivityEntry] = []
     private let logger: CSVLogger
     private let frameDefaultsKey = "LogViewerWindowFrame"
+    private let timeFormatter = DateFormatter()
 
     // Cache app icons by app name for performance
     private var appIconCache: [String: NSImage] = [:]
@@ -42,6 +43,13 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         window.delegate = self
         restoreWindowFrame()
         setupUI()
+        updateTimeFormatterFromPreferences()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleUserDefaultsDidChange),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
         // initialize history with today
         let today = Calendar.current.startOfDay(for: Date())
         pushToHistory(today)
@@ -55,6 +63,17 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private func updateTimeFormatterFromPreferences() {
+        let use12Hour = UserDefaults.standard.object(forKey: "use12HourTimeDisplay") as? Bool ?? false
+        timeFormatter.locale = Locale.autoupdatingCurrent
+        timeFormatter.dateFormat = use12Hour ? "h:mm:ss a" : "HH:mm:ss"
+    }
+
+    @objc private func handleUserDefaultsDidChange() {
+        updateTimeFormatterFromPreferences()
+        tableView.reloadData()
     }
 
     private func setupUI() {
@@ -246,9 +265,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         let id = tableColumn!.identifier.rawValue
         let text: String
         if id == "time" {
-            let s = DateFormatter()
-            s.dateFormat = "HH:mm:ss"
-            text = s.string(from: e.startTime)
+            text = timeFormatter.string(from: e.startTime)
         } else if id == "duration" {
             if let d = e.durationSeconds {
                 text = formatDuration(Int(d))

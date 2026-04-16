@@ -2,13 +2,14 @@ import AppKit
 
 final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let checkbox = NSButton(checkboxWithTitle: "Show status item in menu bar", target: nil, action: nil)
+    private let timeFormatCheckbox = NSButton(checkboxWithTitle: "Use 12-hour time in app display", target: nil, action: nil)
     private let pollLabel = NSTextField(labelWithString: "Sampling interval (seconds):")
     private let pollField = NSTextField(string: "")
     private let pollStepper = NSStepper()
     private let frameDefaultsKey = "PreferencesWindowFrame"
 
     init() {
-        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 120)
+        let defaultRect = NSRect(x: 0, y: 0, width: 420, height: 154)
         let window = NSWindow(contentRect: defaultRect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "Preferences"
@@ -23,13 +24,21 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     private func setupUI() {
         guard let content = window?.contentView else { return }
-        checkbox.frame = NSRect(x: 20, y: 64, width: 380, height: 18)
+        checkbox.frame = NSRect(x: 20, y: 98, width: 380, height: 18)
         checkbox.target = self
         checkbox.action = #selector(toggleStatusItem(_:))
         content.addSubview(checkbox)
 
         let show = UserDefaults.standard.object(forKey: "showStatusItem") as? Bool ?? true
         checkbox.state = show ? .on : .off
+
+        timeFormatCheckbox.frame = NSRect(x: 20, y: 68, width: 380, height: 18)
+        timeFormatCheckbox.target = self
+        timeFormatCheckbox.action = #selector(toggleTimeFormat(_:))
+        content.addSubview(timeFormatCheckbox)
+
+        let use12Hour = UserDefaults.standard.object(forKey: "use12HourTimeDisplay") as? Bool ?? false
+        timeFormatCheckbox.state = use12Hour ? .on : .off
 
         // Poll interval controls
         pollLabel.frame = NSRect(x: 20, y: 28, width: 200, height: 18)
@@ -89,6 +98,11 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         if let app = NSApp.delegate as? AppDelegate {
             app.showStatusItem = show
         }
+    }
+
+    @objc private func toggleTimeFormat(_ sender: NSButton) {
+        let use12Hour = (sender.state == .on)
+        UserDefaults.standard.set(use12Hour, forKey: "use12HourTimeDisplay")
     }
 
     @objc private func pollStepperChanged(_ sender: NSStepper) {
