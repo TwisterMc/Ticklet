@@ -219,8 +219,8 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         let col1 = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("time"))
         col1.title = "Time"
         col1.width = 200
-        // sort by startTime (newest first by default)
-        let defaultTimeSortDescriptor = NSSortDescriptor(key: "startTime", ascending: false)
+        // sort by startTime (oldest first by default)
+        let defaultTimeSortDescriptor = NSSortDescriptor(key: "startTime", ascending: true)
         col1.sortDescriptorPrototype = defaultTimeSortDescriptor
         tableView.addTableColumn(col1)
 
@@ -491,7 +491,7 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
 
     private func restoreSortDescriptor() {
         guard let dict = UserDefaults.standard.dictionary(forKey: sortDefaultsKey), let key = dict["key"] as? String, let ascending = dict["ascending"] as? Bool else {
-            tableView.sortDescriptors = [NSSortDescriptor(key: "startTime", ascending: false)]
+            tableView.sortDescriptors = [NSSortDescriptor(key: "startTime", ascending: true)]
             sortEntries()
             return
         }
