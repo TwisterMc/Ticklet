@@ -22,8 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Log startup for debugging
         NSLog("[Ticklet] applicationDidFinishLaunching")
 
-        // Run as a regular macOS app (Dock + app menu)
-        NSApp.setActivationPolicy(.regular)
+        // Run as an accessory app — no Dock icon, but app menu shows when a window is key
+        NSApp.setActivationPolicy(.accessory)
 
         // Application main menu (About | Preferences | Quit)
         // Prefer a user-facing name from Info.plist (CFBundleDisplayName) or the bundle's executable name
