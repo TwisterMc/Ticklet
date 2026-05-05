@@ -1,8 +1,7 @@
 import AppKit
 import ApplicationServices
+import SwiftUI
 
-
-/// Helper to get app display name from bundle info, preferring CFBundleDisplayName over executable name
 private func bundleDisplayName() -> String {
     return (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
         ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String)
@@ -19,20 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var accessibilityPollTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Log startup for debugging
         NSLog("[Ticklet] applicationDidFinishLaunching")
 
-        // Run as an accessory app — no Dock icon, but app menu shows when a window is key
-        NSApp.setActivationPolicy(.accessory)
+        let showDock = UserDefaults.standard.object(forKey: "showDockIcon") as? Bool ?? true
+        NSApp.setActivationPolicy(showDock ? .regular : .accessory)
 
-        // Application main menu (About | Preferences | Quit)
-        // Prefer a user-facing name from Info.plist (CFBundleDisplayName) or the bundle's executable name
-        // This avoids showing build artifact names like "Ticklet-<arch>" when an arch‑specific
-        // app bundle is used. Fall back to ProcessInfo if needed.
         let appName = bundleDisplayName()
         let mainMenu = NSMenu()
 
-        // App menu
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu(title: appName)
@@ -44,60 +37,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         checkUpdatesAppItem.target = self
         appMenu.addItem(checkUpdatesAppItem)
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Settings…", action: #selector(openPreferences), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: ",")
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit \(appName)", action: #selector(quit), keyEquivalent: "q")
 
-        // File menu (standard Close Window with Cmd-W)
         let fileMenuItem = NSMenuItem()
         mainMenu.addItem(fileMenuItem)
         let fileMenu = NSMenu(title: "File")
         fileMenuItem.submenu = fileMenu
-        // Use NSWindow.performClose: so the key window will close
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
 
-        // View menu (Reload logs shortcut)
         let viewMenuItem = NSMenuItem()
         mainMenu.addItem(viewMenuItem)
         let viewMenu = NSMenu(title: "View")
         viewMenuItem.submenu = viewMenu
         let reloadItem = NSMenuItem(title: "Reload Logs", action: #selector(reloadLogs), keyEquivalent: "r")
         reloadItem.target = self
-        // Ensure it's Cmd-R
         reloadItem.keyEquivalentModifierMask = [.command]
         viewMenu.addItem(reloadItem)
 
         NSApp.mainMenu = mainMenu
 
-        // Build and retain the status-bar menu so it can be reused if the
-        // user toggles the status item off and back on via Preferences.
         let menu = buildStatusMenu()
         statusMenu = menu
 
-        // Read preference to determine if we should show status item (default: true)
         let show = UserDefaults.standard.object(forKey: "showStatusItem") as? Bool ?? true
         self.showStatusItem = show
         if show {
             createStatusItem(with: menu)
         }
 
-        // Check accessibility permission; start polling immediately so the menu
-        // updates as soon as permission is granted regardless of how the user gets there.
         if !AXIsProcessTrusted() {
             startAccessibilityPolling()
-            // Brief delay so the app finishes launching before presenting the alert
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?.promptForAccessibilityIfNeeded()
             }
         }
 
-        // initialize tracker, logger, and UI
         do {
             logger = try CSVLogger()
-            // Apply saved privacy preference
             logger?.redactWindowTitles = UserDefaults.standard.bool(forKey: "redactWindowTitles")
             tracker = ActivityTracker()
-            // Apply user-configured poll interval (seconds) if present, with bounds check
             let savedInterval = UserDefaults.standard.double(forKey: "pollIntervalSeconds")
             if savedInterval >= 0.1 && savedInterval <= 60.0 {
                 tracker?.setPollInterval(savedInterval)
@@ -105,20 +87,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             manager = ActivityManager(logger: logger!, tracker: tracker!)
             tracker?.start()
 
-            // observe finalized entries to update status indicator
             NotificationCenter.default.addObserver(forName: .tickletEntryFinalized, object: nil, queue: .main) { [weak self] n in
                 guard let entry = n.object as? ActivityEntry else { return }
-                // Capture the app name (a Sendable type) so we don't send the whole entry into the MainActor task
                 let appName = entry.appName
                 Task { @MainActor in
                     self?.updateStatusIcon(isIdle: appName == "[IDLE]")
                 }
             }
 
-            // Update accessibility menu item visibility
             updateAccessibilityMenuItem()
-
-            // Silently check for updates on launch
             UpdateChecker.shared.checkForUpdates(silentIfCurrent: true)
 
         } catch {
@@ -137,7 +114,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func buildStatusMenu() -> NSMenu {
         let menu = NSMenu()
 
-        // Accessibility status item — visible until permission is granted
         let accessItem = NSMenuItem(title: "Accessibility Access Required — Enable…", action: #selector(openAccessibilityPreferences), keyEquivalent: "")
         accessItem.target = self
         menu.addItem(accessItem)
@@ -178,9 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return menu
     }
 
-    // Preferences
-    private var preferencesWindowController: PreferencesWindowController?
     private var logViewerWindowController: LogViewerWindowController?
+    private var preferencesWindow: NSWindow?
     var showStatusItem: Bool = true {
         didSet {
             UserDefaults.standard.set(showStatusItem, forKey: "showStatusItem")
@@ -203,16 +178,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if let btn = statusItem?.button {
             if let img = makeStatusImage() {
-                img.isTemplate = true // let system tint the symbol appropriately for light/dark
+                img.isTemplate = true
                 btn.image = img
             }
             btn.imagePosition = .imageOnly
-            // use alpha to indicate idle vs active; do not set contentTintColor so system uses the correct menu-bar color
             btn.alphaValue = 1.0
             btn.setAccessibilityLabel("Ticklet — activity tracking")
         }
 
-        // Ensure accessibility label is updated right away so menu shows a human-readable first item
         updateAccessibilityMenuItem()
     }
 
@@ -224,15 +197,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func makeStatusImage() -> NSImage? {
-        if #available(macOS 11.0, *) {
-            return NSImage(systemSymbolName: "person.crop.circle.badge.clock", accessibilityDescription: "Ticklet")
-        }
-        return nil
+        NSImage(systemSymbolName: "person.crop.circle.badge.clock", accessibilityDescription: "Ticklet")
     }
 
     private func updateStatusIcon(isIdle: Bool) {
         guard let btn = statusItem?.button else { return }
-        // Use alpha to dim for idle; system tints template image to correct light/dark color automatically
         btn.alphaValue = isIdle ? 0.6 : 1.0
     }
 
@@ -248,8 +217,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Shows an alert explaining why Ticklet needs Accessibility access, then triggers
-    /// the system grant flow if the user agrees.  Only called when not yet trusted.
     private func promptForAccessibilityIfNeeded() {
         guard !AXIsProcessTrusted() else { return }
         let alert = NSAlert()
@@ -262,8 +229,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         requestAccessibilityAccess()
     }
 
-    /// Calls the system API that opens System Settings → Privacy → Accessibility
-    /// (or shows the TCC prompt on older macOS).  Single entry-point for all grant flows.
     private func requestAccessibilityAccess() {
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
@@ -274,9 +239,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         startAccessibilityPolling()
     }
 
-    /// Starts a 1-second repeating timer that updates the menu item as soon as
-    /// the user grants Accessibility access.  Safe to call multiple times — a
-    /// running timer is invalidated before starting a new one.
     private func startAccessibilityPolling() {
         accessibilityPollTimer?.invalidate()
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] timer in
@@ -288,7 +250,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.updateAccessibilityMenuItem()
             }
         }
-        // .common mode fires even while the status-bar menu is open (.eventTracking)
         RunLoop.main.add(timer, forMode: .common)
         accessibilityPollTimer = timer
     }
@@ -309,7 +270,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateAccessibilityMenuItem()
     }
 
-    /// Called by `LogViewerWindowController` when the window closes so the AppDelegate can release its reference
     func logViewerDidClose(_ controller: LogViewerWindowController) {
         if logViewerWindowController === controller {
             logViewerWindowController = nil
@@ -325,10 +285,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openPreferences() {
-        if preferencesWindowController == nil {
-            preferencesWindowController = PreferencesWindowController()
+        if let window = preferencesWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
         }
-        bringToFront(preferencesWindowController!)
+
+        let hostingController = NSHostingController(rootView: PreferencesView())
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable]
+        window.center()
+        window.isReleasedWhenClosed = false
+        preferencesWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     // MARK: - NSMenuDelegate
@@ -367,7 +338,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    // MARK: - Settings API for PreferencesWindowController
+    // MARK: - Settings API
 
     func setRedactWindowTitles(_ redact: Bool) {
         logger?.redactWindowTitles = redact
@@ -376,11 +347,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func setPollInterval(_ seconds: Double) {
         tracker?.setPollInterval(seconds)
     }
+
+    func setShowDockIcon(_ show: Bool) {
+        UserDefaults.standard.set(show, forKey: "showDockIcon")
+        NSApp.setActivationPolicy(show ? .regular : .accessory)
+    }
 }
-
-
-// Top-level application startup (keeps SwiftPM happy for tests)
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
