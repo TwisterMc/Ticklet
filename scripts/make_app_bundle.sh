@@ -31,6 +31,74 @@ INFOPLIST="$CONTENTS/Info.plist"
 # Locate the source Info.plist — canonical location is Sources/Ticklet/Info.plist
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE_PLIST="$SCRIPT_DIR/../Sources/Ticklet/Info.plist"
+DEFAULT_ENTITLEMENTS="$SCRIPT_DIR/../resources/entitlements.plist"
+
+sign_app() {
+  local app_path="$1"
+  local sign_identity="$2"
+  local entitlements="$3"
+  local sign_options="$4"
+
+  echo "Signing $app_path with: ${sign_identity}"
+  if command -v codesign >/dev/null 2>&1; then
+    read -r -a _sign_opts <<< "${sign_options}"
+    local codesign_cmd=(/usr/bin/codesign --force --deep)
+    if [ ${#_sign_opts[@]} -gt 0 ]; then
+      codesign_cmd+=("${_sign_opts[@]}")
+    fi
+    if [ -n "${entitlements}" ]; then
+      codesign_cmd+=(--entitlements "${entitlements}")
+    fi
+    codesign_cmd+=(--sign "${sign_identity}" "${app_path}")
+    "${codesign_cmd[@]}"
+    echo "Signed: $app_path"
+  else
+    echo "Warning: codesign not available; skipping signing"
+  fi
+}
+
+verify_app() {
+  local app_path="$1"
+
+  echo "Verifying code signature for ${app_path}"
+  /usr/bin/codesign --verify --deep --strict --verbose=2 "${app_path}"
+  echo "codesign details for ${app_path}:"
+  /usr/bin/codesign -dvvv "${app_path}" 2>&1
+  if command -v spctl >/dev/null 2>&1; then
+    echo "spctl assessment for ${app_path}:"
+    spctl --assess --type execute --verbose "${app_path}" 2>&1 || true
+  fi
+}
+
+make_zip() {
+  local app_path="$1"
+  local zip_path="$2"
+  local stage_dir
+
+  stage_dir="$(mktemp -d)"
+  cp -R "${app_path}" "${stage_dir}/Ticklet.app"
+  ditto -c -k --sequesterRsrc --keepParent "${stage_dir}/Ticklet.app" "${zip_path}"
+  rm -rf "${stage_dir}"
+  echo "Created archive: ${zip_path}"
+}
+
+notarize_archive() {
+  local zip_path="$1"
+  local app_path="$2"
+  local keychain_profile="$3"
+
+  if ! command -v xcrun >/dev/null 2>&1; then
+    echo "Warning: xcrun not available; skipping notarization"
+    return
+  fi
+
+  echo "Submitting ${zip_path} for notarization"
+  xcrun notarytool submit "${zip_path}" --keychain-profile "${keychain_profile}" --wait
+  echo "Stapling notarization ticket to ${app_path}"
+  xcrun stapler staple "${app_path}"
+  echo "Validating stapled ticket for ${app_path}"
+  xcrun stapler validate "${app_path}"
+}
 
 echo "Creating app bundle at: $OUT_APP_PATH"
 rm -rf "$OUT_APP_PATH"
@@ -97,25 +165,20 @@ echo "App bundle created: $OUT_APP_PATH"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 ENTITLEMENTS="${ENTITLEMENTS:-}"
 SIGN_OPTIONS="${SIGN_OPTIONS:-}"
+ZIP_OUTPUT_PATH="${ZIP_OUTPUT_PATH:-}"
+NOTARIZE="${NOTARIZE:-0}"
+NOTARY_KEYCHAIN_PROFILE="${NOTARY_KEYCHAIN_PROFILE:-}"
+VERIFY_SIGNED_APP="${VERIFY_SIGNED_APP:-1}"
+
+if [ -z "${ENTITLEMENTS}" ] && [ -f "${DEFAULT_ENTITLEMENTS}" ] && [ -n "${SIGN_IDENTITY}" ] && [ "${SIGN_IDENTITY}" != "-" ]; then
+  ENTITLEMENTS="${DEFAULT_ENTITLEMENTS}"
+fi
 
 # Sign the original output if signing is enabled
 if [ -n "${SIGN_IDENTITY}" ]; then
-  echo "Signing $OUT_APP_PATH with: ${SIGN_IDENTITY}"
-  if command -v codesign >/dev/null 2>&1; then
-    read -r -a _sign_opts <<< "${SIGN_OPTIONS}"
-    codesign_cmd=(/usr/bin/codesign --force --deep)
-    if [ ${#_sign_opts[@]} -gt 0 ]; then
-      codesign_cmd+=("${_sign_opts[@]}")
-    fi
-    if [ -n "${ENTITLEMENTS}" ]; then
-      codesign_cmd+=(--entitlements "${ENTITLEMENTS}")
-    fi
-    codesign_cmd+=(--sign "${SIGN_IDENTITY}" "${OUT_APP_PATH}")
-    
-    "${codesign_cmd[@]}"
-    echo "Signed: $OUT_APP_PATH"
-  else
-    echo "Warning: codesign not available; skipping signing"
+  sign_app "$OUT_APP_PATH" "$SIGN_IDENTITY" "$ENTITLEMENTS" "$SIGN_OPTIONS"
+  if [ "${VERIFY_SIGNED_APP}" = "1" ]; then
+    verify_app "$OUT_APP_PATH"
   fi
 fi
 
@@ -128,6 +191,7 @@ OUT_BASE=$(basename "$OUT_APP_PATH")
 #  - per-arch dir:  ./artifacts/<arch>/Ticklet.app
 # Determine the artifacts directory (parent 'artifacts') when given a per-arch dir
 ARTIFACTS_DIR="$OUT_DIR"
+RELEASE_APP_PATH="$OUT_APP_PATH"
 if [ "$OUT_BASE" = "Ticklet.app" ] && [ "$(basename "$OUT_DIR")" != "artifacts" ]; then
   ARTIFACTS_DIR="$(dirname "$OUT_DIR")"
 fi
@@ -148,30 +212,38 @@ if ( echo "$OUT_BASE" | grep -qE '^Ticklet-[a-zA-Z0-9_]+\.app$' ) || ( echo "$OU
   fi
   chmod -R u+rwX "$CANONICAL" || true
   echo "Canonical artifact ready: $CANONICAL"
+  RELEASE_APP_PATH="$CANONICAL"
 
   if [ -n "${SIGN_IDENTITY:-}" ]; then
-    echo "Signing canonical artifact with: ${SIGN_IDENTITY}"
-    if command -v codesign >/dev/null 2>&1; then
-      # compose codesign command supporting optional SIGN_OPTIONS and ENTITLEMENTS
-      read -r -a _sign_opts <<< "${SIGN_OPTIONS}"
-      codesign_cmd=(/usr/bin/codesign --force --deep)
-      if [ ${#_sign_opts[@]} -gt 0 ]; then
-        codesign_cmd+=("${_sign_opts[@]}")
-      fi
-      if [ -n "${ENTITLEMENTS}" ]; then
-        codesign_cmd+=(--entitlements "${ENTITLEMENTS}")
-      fi
-      codesign_cmd+=(--sign "${SIGN_IDENTITY}" "${CANONICAL}")
-
-      # Execute codesign (fail the script if signing fails)
-      "${codesign_cmd[@]}"
-      echo "codesign details for ${CANONICAL}:" && /usr/bin/codesign -dvvv "${CANONICAL}" 2>&1
-      if command -v spctl >/dev/null 2>&1; then
-        echo "spctl assessment for ${CANONICAL}:" && spctl --assess --type execute --verbose "${CANONICAL}" 2>&1 || true
-      fi
-    else
-      echo "codesign not available on PATH; skipping signing"
+    sign_app "$CANONICAL" "$SIGN_IDENTITY" "$ENTITLEMENTS" "$SIGN_OPTIONS"
+    if [ "${VERIFY_SIGNED_APP}" = "1" ]; then
+      verify_app "$CANONICAL"
     fi
+  fi
+fi
+
+if [ -z "${ZIP_OUTPUT_PATH}" ] && [ "$(basename "$ARTIFACTS_DIR")" = "artifacts" ]; then
+  archive_basename="${OUT_BASE%.app}.zip"
+  ZIP_OUTPUT_PATH="${ARTIFACTS_DIR}/${archive_basename}"
+fi
+
+if [ -n "${ZIP_OUTPUT_PATH}" ]; then
+  rm -f "${ZIP_OUTPUT_PATH}"
+  make_zip "${RELEASE_APP_PATH}" "${ZIP_OUTPUT_PATH}"
+fi
+
+if [ "${NOTARIZE}" = "1" ]; then
+  if [ -z "${ZIP_OUTPUT_PATH}" ]; then
+    echo "Error: NOTARIZE=1 requires ZIP_OUTPUT_PATH to be set or an artifacts output path." >&2
+    exit 1
+  fi
+  if [ -z "${NOTARY_KEYCHAIN_PROFILE}" ]; then
+    echo "Error: NOTARIZE=1 requires NOTARY_KEYCHAIN_PROFILE." >&2
+    exit 1
+  fi
+  notarize_archive "${ZIP_OUTPUT_PATH}" "${RELEASE_APP_PATH}" "${NOTARY_KEYCHAIN_PROFILE}"
+  if [ "${VERIFY_SIGNED_APP}" = "1" ]; then
+    verify_app "${RELEASE_APP_PATH}"
   fi
 fi
 

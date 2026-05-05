@@ -25,15 +25,15 @@ You can expect an acknowledgement within **48 hours** and a resolution or status
 
 Ticklet is a local-only macOS menu bar app. It:
 
-- Does **not** communicate with any external servers or networks
+- Optionally checks GitHub Releases for updates when automatic update checks are enabled
 - Does **not** store credentials, tokens, or sensitive personal data
-- Writes only app name and window title to CSV files in `~/Library/Logs/Ticklet/`
+- Writes only app name and window title to CSV files in `~/Library/Application Support/Ticklet/`
 - Requires Accessibility permission solely to read frontmost window titles
 
 Security issues most relevant to this project include:
 
 - Privilege escalation via the Accessibility API
-- Unintended data exposure outside `~/Library/Logs/Ticklet/`
+- Unintended data exposure outside `~/Library/Application Support/Ticklet/`
 - Code injection through maliciously crafted window titles written to CSV logs
 - Insecure handling of file paths or log rotation
 

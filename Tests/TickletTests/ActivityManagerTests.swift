@@ -22,6 +22,11 @@ final class MockLogger: LogWriter {
 
 @MainActor
 final class ActivityManagerTests: XCTestCase {
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "excludedApps")
+        super.tearDown()
+    }
+
     func testManagerWritesOnFinalized() {
         let now = Date()
         let tracker = ActivityTracker(now: { now })
@@ -62,5 +67,19 @@ final class ActivityManagerTests: XCTestCase {
         XCTAssertTrue(read.contains(where: { $0.appName == "AppA" && $0.windowTitle == "win1" }))
         XCTAssertTrue(read.contains(where: { $0.appName == "AppB" && $0.windowTitle == "win2" }))
         XCTAssertEqual(read.count, 2)
+    }
+
+    func testHandleFinalizedSkipsExcludedApps() {
+        UserDefaults.standard.set("Slack\nDiscord", forKey: "excludedApps")
+
+        let now = Date()
+        let tracker = ActivityTracker(now: { now })
+        let mock = MockLogger()
+        let manager = ActivityManager(logger: mock, tracker: tracker)
+
+        let entry = ActivityEntry(appName: "Slack", windowTitle: "DM", startTime: now, endTime: now.addingTimeInterval(30))
+        manager.handleFinalized(entry)
+
+        XCTAssertTrue(mock.written.isEmpty)
     }
 }

@@ -26,6 +26,10 @@ final class ActivityManager {
     }
 
     @MainActor func handleFinalized(_ entry: ActivityEntry) {
+        if isExcludedApp(entry.appName) {
+            return
+        }
+
         do {
             try logger.append(entries: [entry], for: entry.startTime)
         } catch {
@@ -35,4 +39,13 @@ final class ActivityManager {
         NotificationCenter.default.post(name: .tickletEntryFinalized, object: entry)
     }
 
+    private func isExcludedApp(_ appName: String) -> Bool {
+        let rawValue = UserDefaults.standard.string(forKey: "excludedApps") ?? ""
+        let excludedApps = rawValue
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+
+        return excludedApps.contains(appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
 }

@@ -88,12 +88,30 @@ Use the packaging helper's `SIGN_IDENTITY` environment variable to sign builds, 
 # Explicit Developer ID signing
 SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
 
-# Sign with entitlements and extra codesign options (for notarization/hardened runtime)
-ENTITLEMENTS='resources/entitlements.plist' SIGN_OPTIONS='--options runtime --timestamp' \
+# Sign with hardened runtime and the default entitlements file
+SIGN_OPTIONS='--options runtime --timestamp' \
   SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
+
+# Create a zip, submit it for notarization, and staple the resulting ticket
+SIGN_OPTIONS='--options runtime --timestamp' \
+  SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' \
+  NOTARIZE=1 NOTARY_KEYCHAIN_PROFILE='ticklet-notary' \
+  ./scripts/make_app_bundle.sh .build-<arch>/release/Ticklet ./artifacts/Ticklet-<arch>.app
 ```
 
-Note: the script will skip signing if `codesign` is not present on PATH; set `SIGN_IDENTITY` explicitly to `""` to avoid signing even when `codesign` is available.
+Notes:
+
+- The script defaults `ENTITLEMENTS` to `resources/entitlements.plist` for non-ad-hoc signing when the file exists.
+- The script will create a `.zip` automatically when the output app is written into `artifacts/`.
+- The script will skip signing if `codesign` is not present on PATH; set `SIGN_IDENTITY` explicitly to `""` to avoid signing even when `codesign` is available.
+- `NOTARIZE=1` requires a `notarytool` keychain profile configured in advance, for example:
+
+```bash
+xcrun notarytool store-credentials 'ticklet-notary' \
+  --apple-id 'you@example.com' \
+  --team-id 'TEAMID' \
+  --password 'app-specific-password'
+```
 
 - Verify signing and Gatekeeper assessment:
 
@@ -103,6 +121,7 @@ spctl --assess --type execute --verbose ./artifacts/Ticklet.app
 ```
 
 - For CI, ensure the signing key is available on the runner and submit notarization jobs as part of your release workflow.
+- A practical release flow is: build -> `make_app_bundle.sh` with `SIGN_IDENTITY` and `NOTARIZE=1` -> upload the produced `.zip`.
 
 - If Finder reports "some items had to be skipped" when moving the app, try these diagnostic and remediation steps in Terminal:
 
@@ -123,6 +142,7 @@ Notes:
 
 - The script will add `CFBundleIconFile` to the Info.plist if an `.icns` is present in `Assets/`.
 - The packaging script now normalizes the resulting `.app` before finishing: it removes extended attributes (like `com.apple.quarantine`), clears immutable flags, and sets reasonable permissions so users can move the app into `/Applications` without Finder skipping items.
+- `resources/entitlements.plist` is intentionally minimal; it disables `get-task-allow` for distribution builds without opting the app into App Sandbox.
 - Don't commit binary icons or build artifacts to the repo; use `artifacts/` for temporary local zips (and keep it in `.gitignore`).
 - We provide a GitHub Actions workflow `/.github/workflows/release.yml` that can build per-arch artifacts and create a draft GitHub Release (it builds per-arch when appropriate runners are available and uploads per-arch zips as artifacts).
 - To provide both Intel and Apple Silicon binaries, build on a machine of the respective architecture (or use CI runners for each arch). You can then create a universal binary with `lipo` by combining two single-arch binaries, if desired.
@@ -146,7 +166,7 @@ Notes:
 
 - Ticklet uses Accessibility APIs to read window titles. Grant permission via System Settings → Privacy & Security → Accessibility.
 - If permission doesn't appear, open the `.app` from Finder once to register it with LaunchServices, then add it to Accessibility.
-- Logs are written to: `~/Library/Logs/Ticklet/` (one CSV per date).
+- Logs are written to: `~/Library/Application Support/Ticklet/` (one CSV per date). On launch, legacy CSVs from `~/Library/Logs/Ticklet/` are copied forward if needed.
 
 ## CI and platform targets
 

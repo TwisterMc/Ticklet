@@ -86,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             manager = ActivityManager(logger: logger!, tracker: tracker!)
             tracker?.start()
+            applyRetentionPolicy()
 
             NotificationCenter.default.addObserver(forName: .tickletEntryFinalized, object: nil, queue: .main) { [weak self] n in
                 guard let entry = n.object as? ActivityEntry else { return }
@@ -96,10 +97,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
 
             updateAccessibilityMenuItem()
-            UpdateChecker.shared.checkForUpdates(silentIfCurrent: true)
+            if UserDefaults.standard.object(forKey: "automaticallyCheckForUpdates") as? Bool ?? true {
+                UpdateChecker.shared.checkForUpdates(silentIfCurrent: true)
+            }
 
         } catch {
             print("Failed to initialize logger: \(error)")
+            let alert = NSAlert()
+            alert.messageText = "Ticklet Could Not Start Logging"
+            alert.informativeText = "The log storage location could not be initialized.\n\n\(error.localizedDescription)"
+            alert.alertStyle = .critical
+            alert.runModal()
         }
     }
 
@@ -351,5 +359,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func setShowDockIcon(_ show: Bool) {
         UserDefaults.standard.set(show, forKey: "showDockIcon")
         NSApp.setActivationPolicy(show ? .regular : .accessory)
+    }
+
+    func applyRetentionPolicy() {
+        let retentionDays = UserDefaults.standard.integer(forKey: "logRetentionDays")
+        guard let logger else { return }
+
+        do {
+            try logger.applyRetentionPolicy(retentionDays: retentionDays)
+            logViewerWindowController?.refresh()
+        } catch {
+            NSLog("[Ticklet] Failed applying retention policy: \(error)")
+        }
+    }
+
+    func deleteHistory() {
+        guard let logger else { return }
+
+        do {
+            try logger.deleteAllLogs()
+            logViewerWindowController?.refresh()
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Could Not Delete History"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
     }
 }

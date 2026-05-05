@@ -9,7 +9,7 @@ This README is for end users — concise install and usage instructions are belo
 ## What Ticklet does
 
 - Runs in the background and records the frontmost app and focused window title at short intervals.
-- Saves entries to daily CSV files at: `~/Library/Logs/Ticklet/` (one file per date).
+- Saves entries to daily CSV files at: `~/Library/Application Support/Ticklet/` (one file per date).
 - Provides a built-in **Logs** viewer for inspecting and navigating days.
 
 ---
@@ -18,9 +18,10 @@ This README is for end users — concise install and usage instructions are belo
 
 - Ticklet requires **Accessibility** permission to read window titles. Without this permission Ticklet will still run but window titles may be empty or incomplete.
 - Window titles may contain sensitive information (document names, emails, etc.). You should:
-  - Review the data stored in `~/Library/Logs/Ticklet/` and delete files you don’t want to keep
+  - Review the data stored in `~/Library/Application Support/Ticklet/` and delete files you don’t want to keep
   - Use the Preferences to disable the status item if you prefer minimal UI
   - Use the **Only log app names (hide window titles)** preference if you do not want window titles written to new log entries
+  - Use the retention, delete-history, and excluded-app controls in Preferences to minimize what gets stored
 
 ---
 
@@ -42,12 +43,14 @@ If you install from a release, double‑click the `.app` and allow system prompt
 
 When Accessibility is enabled, Ticklet will be able to read window titles and produce richer logs.
 
-**⚠️ Important Note About Updates:**
+**⚠️ Important Note About Local/Ad-Hoc Builds:**
 
-- If you build/download a new version of Ticklet, macOS will treat it as a different app
+- If you build a new ad-hoc version of Ticklet locally, macOS may treat it as a different app
 - You'll need to re-authorize Accessibility permissions for each new build
 - This is because the app uses ad-hoc signing (code signature changes with each build)
 - To avoid this: install Ticklet to a fixed location (e.g., `/Applications/Ticklet.app`) and always replace the same file when updating
+
+Official Developer ID signed and notarized releases should behave more consistently across updates.
 
 ---
 
@@ -56,7 +59,9 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
 - Menu Bar: Ticklet can run with an optional status item (icon) — toggle this in Preferences.
 - Sampling interval: set the recording interval (seconds) in **Preferences** — default is 1 second (supported range: 0.1–60).
 - Privacy: enable **Only log app names (hide window titles)** in **Preferences** if you want new log entries to omit window titles.
+- Privacy: you can also set a retention period, delete all recorded history, and exclude specific apps from logging in **Preferences**.
 - Time display: enable **Use 12-hour time in app display** in **Preferences** if you prefer AM/PM formatting in the app UI.
+- Updates: disable **Automatically check for updates on launch** in **Preferences** if you do not want Ticklet to contact GitHub Releases automatically.
 - Logs Viewer: choose **View Logs…** from the Ticklet menu to open the Log Viewer window.
   - Use the date controls (Back / Forward / Today) to navigate days.
   - Click column headers to sort entries; sorting is remembered.
@@ -66,7 +71,7 @@ When Accessibility is enabled, Ticklet will be able to read window titles and pr
   - Use the **Refresh** button to reload the current day's logs, or press **⌘R** (Reload Logs) — it performs the same refresh action.
   - When you open **View Logs…**, Ticklet activates and the Log Viewer window is brought to the front.
   - Window position and size are remembered between launches.
-- Logs are stored as CSV; each row includes start time, end time, duration (seconds), app name, and window title.
+- Logs are stored as CSV in Application Support; each row includes start time, end time, duration (seconds), app name, and window title.
 
 ---
 
@@ -79,6 +84,7 @@ If you find Ticklet useful and would like to support its development, consider m
 ## Troubleshooting
 
 - If logs are empty or missing titles: verify Accessibility permission and restart the app.
+- If you previously used an older build, Ticklet will migrate legacy CSV files from `~/Library/Logs/Ticklet/` into `~/Library/Application Support/Ticklet/` on launch.
 - If Ticklet doesn’t appear in Accessibility list: use Finder to open the `.app` once (this registers it with Launch Services), then add it in System Settings.
 - If the app behaves oddly after granting permission, quit it and re-open it from Finder.
 
@@ -99,14 +105,23 @@ If you find Ticklet useful and would like to support its development, consider m
 ./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app
 ```
 
-- To sign for distribution, set `SIGN_IDENTITY` to your Developer ID identity. You can also provide `ENTITLEMENTS` and `SIGN_OPTIONS` for hardened runtime / notarization, for example:
+- To sign for distribution, set `SIGN_IDENTITY` to your Developer ID identity. The repo includes a default entitlements file at `resources/entitlements.plist`; add hardened runtime options for notarization, for example:
 
 ```bash
-ENTITLEMENTS='resources/entitlements.plist' SIGN_OPTIONS='--options runtime --timestamp' \
+SIGN_OPTIONS='--options runtime --timestamp' \
   SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' ./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app
 ```
 
-- For full signing & notarization instructions (CI integration, exporting `.p12`, verifying with `codesign -dvvv` and `spctl`), see `DEVELOPER.md`.
+- To create a notarized release zip with a configured `notarytool` keychain profile:
+
+```bash
+SIGN_OPTIONS='--options runtime --timestamp' \
+SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' \
+NOTARIZE=1 NOTARY_KEYCHAIN_PROFILE='ticklet-notary' \
+./scripts/make_app_bundle.sh .build/release/Ticklet ./artifacts/Ticklet.app
+```
+
+- For full signing & notarization instructions, see `DEVELOPER.md`.
 
 ---
 
