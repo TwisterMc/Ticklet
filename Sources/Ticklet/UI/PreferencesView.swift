@@ -35,6 +35,14 @@ struct PreferencesView: View {
 
             prefsDivider()
 
+            prefsSection("Display") {
+                Toggle("Use 12-hour time in app display", isOn: $use12Hour)
+                Toggle("Show Dock icon", isOn: $showDockIcon)
+                Toggle("Show status item in menu bar", isOn: $showStatusItem)
+            }
+
+            prefsDivider()
+
             prefsSection("Excluded Apps") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("One app name per line")
@@ -46,14 +54,6 @@ struct PreferencesView: View {
                         .accessibilityLabel("Excluded apps")
                         .accessibilityHint("Enter one app name per line to exclude it from tracking")
                 }
-            }
-
-            prefsDivider()
-
-            prefsSection("Display") {
-                Toggle("Use 12-hour time in app display", isOn: $use12Hour)
-                Toggle("Show Dock icon", isOn: $showDockIcon)
-                Toggle("Show status item in menu bar", isOn: $showStatusItem)
             }
 
             prefsDivider()
@@ -93,7 +93,7 @@ struct PreferencesView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes every stored Ticklet CSV file from Application Support.")
+            Text("This moves every stored Ticklet CSV file to the Trash.")
         }
     }
 

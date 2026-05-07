@@ -163,7 +163,7 @@ final class CSVLogger: LogWriter {
 
     func deleteAllLogs() throws {
         for fileURL in try csvFiles(in: directory) {
-            try fileManager.removeItem(at: fileURL)
+            try fileManager.trashItem(at: fileURL, resultingItemURL: nil)
         }
     }
 
