@@ -9,6 +9,118 @@ private func bundleDisplayName() -> String {
 }
 
 @MainActor
+private final class PreferencesWindowController: NSWindowController, NSToolbarDelegate, NSWindowDelegate {
+    private let model: PreferencesWindowModel
+    private let hostingController: NSHostingController<PreferencesContainerView>
+
+    override init(window: NSWindow?) {
+        let model = PreferencesWindowModel()
+        self.model = model
+        self.hostingController = NSHostingController(rootView: PreferencesContainerView(model: model))
+        let window = NSWindow(contentViewController: hostingController)
+        super.init(window: window)
+
+        let toolbar = NSToolbar(identifier: "TickletPreferencesToolbar")
+        toolbar.delegate = self
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        toolbar.displayMode = .iconAndLabel
+        toolbar.centeredItemIdentifier = model.selectedPane.toolbarIdentifier
+        toolbar.selectedItemIdentifier = model.selectedPane.toolbarIdentifier
+
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.toolbar = toolbar
+        window.toolbarStyle = .preference
+        window.delegate = self
+        window.center()
+
+        resizeWindow(for: model.selectedPane, animate: false)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func show(selectedPane: PreferencesPane = .general) {
+        selectPane(selectedPane, animate: false)
+        showWindow(nil)
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        // Keep controller alive for reopen while allowing normal close behavior.
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        PreferencesPane.allCases.map(\.toolbarIdentifier)
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        PreferencesPane.allCases.map(\.toolbarIdentifier)
+    }
+
+    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        PreferencesPane.allCases.map(\.toolbarIdentifier)
+    }
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard let pane = PreferencesPane.allCases.first(where: { $0.toolbarIdentifier == itemIdentifier }) else {
+            return nil
+        }
+
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = pane.title
+        item.paletteLabel = pane.title
+        item.toolTip = pane.title
+        item.image = NSImage(systemSymbolName: pane.systemImage, accessibilityDescription: pane.title)
+        item.target = self
+        item.action = #selector(selectPaneFromToolbar(_:))
+        return item
+    }
+
+    @objc private func selectPaneFromToolbar(_ sender: NSToolbarItem) {
+        guard let pane = PreferencesPane.allCases.first(where: { $0.toolbarIdentifier == sender.itemIdentifier }) else {
+            return
+        }
+        selectPane(pane, animate: true)
+    }
+
+    private func selectPane(_ pane: PreferencesPane, animate: Bool) {
+        model.selectedPane = pane
+        window?.toolbar?.selectedItemIdentifier = pane.toolbarIdentifier
+        window?.toolbar?.centeredItemIdentifier = pane.toolbarIdentifier
+        resizeWindow(for: pane, animate: animate)
+    }
+
+    private func resizeWindow(for pane: PreferencesPane, animate: Bool) {
+        guard let window else { return }
+
+        let targetContentSize = measuredContentSize(for: pane)
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: targetContentSize))
+        frame.origin.x = window.frame.origin.x
+        frame.origin.y = window.frame.maxY - frame.size.height
+        window.setFrame(frame, display: true, animate: animate)
+    }
+
+    private func measuredContentSize(for pane: PreferencesPane) -> NSSize {
+        let measuringView = NSHostingView(rootView: PreferencesContentView(selectedPane: pane))
+        measuringView.layoutSubtreeIfNeeded()
+
+        var fittingSize = measuringView.fittingSize
+        fittingSize.width = max(fittingSize.width, pane.contentWidth)
+        return fittingSize
+    }
+}
+
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
@@ -16,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var tracker: ActivityTracker?
     private var manager: ActivityManager?
     private var accessibilityPollTimer: Timer?
+    private lazy var preferencesWindowController = PreferencesWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSLog("[Ticklet] applicationDidFinishLaunching")
@@ -131,8 +244,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         manager?.stop()
     }
 
-    // MARK: - Status menu
-
     private func buildStatusMenu() -> NSMenu {
         let menu = NSMenu()
 
@@ -177,7 +288,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var logViewerWindowController: LogViewerWindowController?
-    private var preferencesWindow: NSWindow?
     var showStatusItem: Bool = true {
         didSet {
             UserDefaults.standard.set(showStatusItem, forKey: "showStatusItem")
@@ -276,8 +386,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         accessibilityPollTimer = timer
     }
 
-    // MARK: - Window management
-
     private func bringToFront(_ windowController: NSWindowController) {
         windowController.showWindow(nil)
         windowController.window?.makeKeyAndOrderFront(nil)
@@ -307,24 +415,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openPreferences() {
-        if let window = preferencesWindow {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let hostingController = NSHostingController(rootView: PreferencesView())
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Settings"
-        window.styleMask = [.titled, .closable]
-        window.center()
-        window.isReleasedWhenClosed = false
-        preferencesWindow = window
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        preferencesWindowController.show()
     }
-
-    // MARK: - NSMenuDelegate
 
     public func menuWillOpen(_ menu: NSMenu) {
         updateAccessibilityMenuItem()
@@ -359,8 +451,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func quit() {
         NSApp.terminate(nil)
     }
-
-    // MARK: - Settings API
 
     func setRedactWindowTitles(_ redact: Bool) {
         logger?.redactWindowTitles = redact

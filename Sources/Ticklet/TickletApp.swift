@@ -6,7 +6,7 @@ struct TickletApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            PreferencesView()
         }
     }
 }
