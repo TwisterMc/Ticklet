@@ -9,6 +9,7 @@ struct PreferencesView: View {
     @AppStorage("automaticallyCheckForUpdates") private var automaticallyCheckForUpdates = true
     @AppStorage("logRetentionDays") private var logRetentionDays = 0
     @AppStorage("excludedApps") private var excludedApps = ""
+    @AppStorage("confirmBeforeQuit") private var confirmBeforeQuit = true
     @State private var showingDeleteHistoryAlert = false
 
     var body: some View {
@@ -60,6 +61,7 @@ struct PreferencesView: View {
 
             prefsSection("Updates") {
                 Toggle("Automatically check for updates on launch", isOn: $automaticallyCheckForUpdates)
+                Toggle("Confirm before quitting", isOn: $confirmBeforeQuit)
             }
 
             prefsDivider()

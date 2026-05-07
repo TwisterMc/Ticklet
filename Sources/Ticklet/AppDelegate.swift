@@ -111,6 +111,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let confirmBeforeQuit = UserDefaults.standard.object(forKey: "confirmBeforeQuit") as? Bool ?? true
+        guard confirmBeforeQuit else {
+            return .terminateNow
+        }
+        let alert = NSAlert()
+        alert.messageText = "Quit Ticklet?"
+        alert.informativeText = "Activity will no longer be logged while Ticklet is not running."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         accessibilityPollTimer?.invalidate()
         accessibilityPollTimer = nil
