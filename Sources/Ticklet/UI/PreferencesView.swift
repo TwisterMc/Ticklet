@@ -12,36 +12,62 @@ struct PreferencesView: View {
     @State private var showingDeleteHistoryAlert = false
 
     var body: some View {
-        Form {
-            Stepper("Sampling interval: \(pollInterval, specifier: "%.1f") seconds", value: $pollInterval, in: 0.1...60.0, step: 0.5)
-                .accessibilityValue("\(pollInterval, specifier: "%.1f") seconds")
-                .accessibilityHint("Adjustable from 0.1 to 60 seconds, step 0.5")
-
-            Divider()
-
-            Toggle("Use 12-hour time in app display", isOn: $use12Hour)
-            Toggle("Only log app names (hide window titles)", isOn: $redactWindowTitles)
-            Toggle("Show Dock icon", isOn: $showDockIcon)
-            Toggle("Show status item in menu bar", isOn: $showStatusItem)
-            Toggle("Automatically check for updates on launch", isOn: $automaticallyCheckForUpdates)
-
-            Picker("Keep activity history", selection: $logRetentionDays) {
-                Text("Forever").tag(0)
-                Text("7 days").tag(7)
-                Text("30 days").tag(30)
-                Text("90 days").tag(90)
-                Text("1 year").tag(365)
+        VStack(alignment: .leading, spacing: 0) {
+            prefsSection("Tracking") {
+                LabeledContent("Sampling interval") {
+                    Stepper("\(pollInterval, specifier: "%.1f") seconds", value: $pollInterval, in: 0.1...60.0, step: 0.5)
+                        .accessibilityValue("\(pollInterval, specifier: "%.1f") seconds")
+                        .accessibilityHint("Adjustable from 0.1 to 60 seconds, step 0.5")
+                }
+                LabeledContent("Keep activity history") {
+                    Picker("", selection: $logRetentionDays) {
+                        Text("Forever").tag(0)
+                        Text("7 days").tag(7)
+                        Text("30 days").tag(30)
+                        Text("90 days").tag(90)
+                        Text("1 year").tag(365)
+                    }
+                    .labelsHidden()
+                    .frame(width: 130)
+                }
+                Toggle("Only log app names (hide window titles)", isOn: $redactWindowTitles)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Excluded apps (one per line)")
-                TextEditor(text: $excludedApps)
-                    .font(.body.monospaced())
-                    .frame(minHeight: 110)
+            prefsDivider()
+
+            prefsSection("Excluded Apps") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("One app name per line")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $excludedApps)
+                        .font(.body.monospaced())
+                        .frame(minHeight: 90)
+                        .accessibilityLabel("Excluded apps")
+                        .accessibilityHint("Enter one app name per line to exclude it from tracking")
+                }
             }
 
-            Button("Delete all recorded history…") {
-                showingDeleteHistoryAlert = true
+            prefsDivider()
+
+            prefsSection("Display") {
+                Toggle("Use 12-hour time in app display", isOn: $use12Hour)
+                Toggle("Show Dock icon", isOn: $showDockIcon)
+                Toggle("Show status item in menu bar", isOn: $showStatusItem)
+            }
+
+            prefsDivider()
+
+            prefsSection("Updates") {
+                Toggle("Automatically check for updates on launch", isOn: $automaticallyCheckForUpdates)
+            }
+
+            prefsDivider()
+
+            prefsSection(nil) {
+                Button("Delete All Recorded History…", role: .destructive) {
+                    showingDeleteHistoryAlert = true
+                }
             }
         }
         .padding(20)
@@ -69,5 +95,22 @@ struct PreferencesView: View {
         } message: {
             Text("This removes every stored Ticklet CSV file from Application Support.")
         }
+    }
+
+    @ViewBuilder
+    private func prefsSection(_ title: String?, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let title {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+            content()
+        }
+        .padding(.vertical, 12)
+    }
+
+    private func prefsDivider() -> some View {
+        Divider()
     }
 }
