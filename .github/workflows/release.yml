@@ -96,9 +96,23 @@ jobs:
           requested="${REQUESTED_IDENTITY:-}"
           selected=""
 
+          echo "Inspecting available code-signing identities on runner..."
+          /usr/bin/security find-identity -v -p codesigning || true
+
           # Read available identities from the imported keychain certs.
           # This remains local to the runner and avoids relying on exact secret formatting.
           available=$(/usr/bin/security find-identity -v -p codesigning | /usr/bin/awk -F'"' '/Developer ID Application: / { print $2 }')
+
+          if [ -z "$available" ]; then
+            echo "No 'Developer ID Application' identities were found after importing APPLE_CERTIFICATE_P12_BASE64."
+            echo "Common causes:"
+            echo "  1) The .p12 does not contain a Developer ID Application certificate"
+            echo "  2) The .p12 was exported without its private key"
+            echo "  3) APPLE_CERTIFICATE_PASSWORD does not match the exported .p12"
+            echo "  4) The base64 in APPLE_CERTIFICATE_P12_BASE64 is from a different/invalid file"
+            echo "Fix by re-exporting from Keychain Access -> My Certificates -> 'Developer ID Application: ...' as .p12, then update secrets."
+            exit 1
+          fi
 
           if [ -n "$requested" ]; then
             if echo "$available" | /usr/bin/grep -Fxq "$requested"; then
