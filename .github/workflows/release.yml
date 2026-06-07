@@ -34,11 +34,10 @@ jobs:
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           set -euo pipefail
           missing=0
-          for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+          for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "Missing required secret for signed tag releases: $name"
               missing=1
@@ -54,7 +53,6 @@ jobs:
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -63,7 +61,7 @@ jobs:
           has_signing=false
           has_notarization=false
 
-          if [ -n "${APPLE_CERTIFICATE_P12_BASE64}" ] && [ -n "${APPLE_CERTIFICATE_PASSWORD}" ] && [ -n "${APPLE_SIGNING_IDENTITY}" ]; then
+          if [ -n "${APPLE_CERTIFICATE_P12_BASE64}" ] && [ -n "${APPLE_CERTIFICATE_PASSWORD}" ]; then
             has_signing=true
           fi
 
@@ -73,7 +71,6 @@ jobs:
 
           echo "has_signing=${has_signing}" >> "$GITHUB_OUTPUT"
           echo "has_notarization=${has_notarization}" >> "$GITHUB_OUTPUT"
-          echo "sign_identity=${APPLE_SIGNING_IDENTITY}" >> "$GITHUB_OUTPUT"
 
           if [ "${has_signing}" != "true" ]; then
             echo "Developer ID signing is disabled for this run (missing one or more signing secrets)."
@@ -88,6 +85,41 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Resolve signing identity
+        id: resolved_identity
+        if: steps.signing.outputs.has_signing == 'true'
+        env:
+          REQUESTED_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          requested="${REQUESTED_IDENTITY:-}"
+          selected=""
+
+          # Read available identities from the imported keychain certs.
+          # This remains local to the runner and avoids relying on exact secret formatting.
+          available=$(/usr/bin/security find-identity -v -p codesigning | /usr/bin/awk -F'"' '/Developer ID Application: / { print $2 }')
+
+          if [ -n "$requested" ]; then
+            if echo "$available" | /usr/bin/grep -Fxq "$requested"; then
+              selected="$requested"
+            else
+              echo "Configured APPLE_SIGNING_IDENTITY was not found in keychain."
+              echo "Requested: $requested"
+              echo "Available Developer ID Application identities:"
+              echo "$available"
+              exit 1
+            fi
+          else
+            selected=$(echo "$available" | /usr/bin/head -n 1)
+            if [ -z "$selected" ]; then
+              echo "No 'Developer ID Application' identity was found after importing the certificate."
+              exit 1
+            fi
+          fi
+
+          echo "Using Developer ID Application identity: $selected"
+          echo "sign_identity=$selected" >> "$GITHUB_OUTPUT"
 
       - name: Configure notarytool keychain profile
         if: steps.signing.outputs.has_notarization == 'true'
@@ -186,7 +218,7 @@ jobs:
         env:
           APP_BUILD: ${{ github.run_number }}
           APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          SIGN_IDENTITY: ${{ steps.signing.outputs.sign_identity }}
+          SIGN_IDENTITY: ${{ steps.resolved_identity.outputs.sign_identity }}
           SIGN_OPTIONS: ${{ steps.signing.outputs.has_signing == 'true' && '--options runtime --timestamp' || '' }}
           NOTARIZE: ${{ steps.signing.outputs.has_signing == 'true' && steps.signing.outputs.has_notarization == 'true' && '1' || '0' }}
           NOTARY_KEYCHAIN_PROFILE: ${{ steps.signing.outputs.has_notarization == 'true' && 'ticklet-notary' || '' }}
