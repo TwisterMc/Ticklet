@@ -86,14 +86,92 @@ notarize_archive() {
   local zip_path="$1"
   local app_path="$2"
   local keychain_profile="$3"
+  local wait_timeout_seconds
+  local poll_interval_seconds
+  local submit_output
+  local submission_id
+  local deadline
+  local now
+  local info_output
+  local info_exit
+  local status
+  local transient_failures
+  local max_transient_failures
 
   if ! command -v xcrun >/dev/null 2>&1; then
     echo "Warning: xcrun not available; skipping notarization"
     return
   fi
 
+  wait_timeout_seconds="${NOTARY_WAIT_TIMEOUT_SECONDS:-5400}"
+  poll_interval_seconds="${NOTARY_POLL_INTERVAL_SECONDS:-30}"
+  max_transient_failures="${NOTARY_MAX_TRANSIENT_FAILURES:-5}"
+
   echo "Submitting ${zip_path} for notarization"
-  xcrun notarytool submit "${zip_path}" --keychain-profile "${keychain_profile}" --wait
+  submit_output="$(xcrun notarytool submit "${zip_path}" --keychain-profile "${keychain_profile}" 2>&1)"
+  echo "${submit_output}"
+
+  submission_id="$(printf '%s\n' "${submit_output}" | awk -F': ' '/^[[:space:]]*id:/ { print $2; exit }')"
+  if [ -z "${submission_id}" ]; then
+    echo "Error: could not parse notarization submission id from notarytool output." >&2
+    exit 1
+  fi
+
+  echo "Polling notarization status for submission id: ${submission_id}"
+  echo "Timeout: ${wait_timeout_seconds}s, poll interval: ${poll_interval_seconds}s"
+  echo "Max transient notarytool info failures: ${max_transient_failures}"
+
+  deadline=$(( $(date +%s) + wait_timeout_seconds ))
+  transient_failures=0
+
+  while true; do
+    set +e
+    info_output="$(xcrun notarytool info "${submission_id}" --keychain-profile "${keychain_profile}" 2>&1)"
+    info_exit=$?
+    set -e
+
+    if [ ${info_exit} -ne 0 ]; then
+      transient_failures=$((transient_failures + 1))
+      echo "Warning: notarytool info failed (${transient_failures}/${max_transient_failures})." >&2
+      echo "${info_output}" >&2
+
+      if [ ${transient_failures} -ge ${max_transient_failures} ]; then
+        echo "Error: notarytool info failed too many times while waiting for notarization." >&2
+        exit 1
+      fi
+
+      sleep "${poll_interval_seconds}"
+      continue
+    fi
+
+    transient_failures=0
+    echo "${info_output}"
+
+    status="$(printf '%s\n' "${info_output}" | awk -F': ' '/^[[:space:]]*status:/ { print tolower($2); exit }')"
+
+    if [ "${status}" = "accepted" ]; then
+      echo "Notarization accepted for submission id: ${submission_id}"
+      break
+    fi
+
+    if [ "${status}" = "invalid" ] || [ "${status}" = "rejected" ]; then
+      echo "Notarization failed with status '${status}'. Fetching notarization log..." >&2
+      xcrun notarytool log "${submission_id}" --keychain-profile "${keychain_profile}" 2>&1 || true
+      exit 1
+    fi
+
+    now=$(date +%s)
+    if [ "${now}" -ge "${deadline}" ]; then
+      echo "Error: timed out waiting for notarization after ${wait_timeout_seconds}s." >&2
+      echo "You can inspect this submission manually with:" >&2
+      echo "  xcrun notarytool info ${submission_id} --keychain-profile ${keychain_profile}" >&2
+      echo "  xcrun notarytool log ${submission_id} --keychain-profile ${keychain_profile}" >&2
+      exit 1
+    fi
+
+    sleep "${poll_interval_seconds}"
+  done
+
   echo "Stapling notarization ticket to ${app_path}"
   xcrun stapler staple "${app_path}"
   echo "Validating stapled ticket for ${app_path}"

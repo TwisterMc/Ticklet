@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     runs-on: macos-15
@@ -21,15 +24,15 @@ jobs:
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-spm-
-      
+
       - name: Verify Swift version
         run: swift --version
-      
+
       - name: Build (debug)
         run: swift build
-      
+
       - name: Test
         run: swift test
-      
+
       - name: Build (release)
         run: swift build -c release
