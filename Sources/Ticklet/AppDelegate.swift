@@ -146,16 +146,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenuItem.submenu = appMenu
         let aboutItem = NSMenuItem(title: "About \(appName)", action: #selector(openAboutPanel), keyEquivalent: "")
         aboutItem.target = self
+        aboutItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "About")
         appMenu.addItem(aboutItem)
         let checkUpdatesAppItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         checkUpdatesAppItem.target = self
+        checkUpdatesAppItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Check for Updates")
         appMenu.addItem(checkUpdatesAppItem)
         appMenu.addItem(.separator())
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: ",")
         settingsItem.target = self
+        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
         appMenu.addItem(settingsItem)
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit \(appName)", action: #selector(quit), keyEquivalent: "q")
+        let quitAppItem = NSMenuItem(title: "Quit \(appName)", action: #selector(quit), keyEquivalent: "q")
+        quitAppItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
+        appMenu.addItem(quitAppItem)
 
         let fileMenuItem = NSMenuItem()
         mainMenu.addItem(fileMenuItem)
@@ -255,39 +260,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let accessItem = NSMenuItem(title: "Accessibility Access Required — Enable…", action: #selector(openAccessibilityPreferences), keyEquivalent: "")
         accessItem.target = self
+        accessItem.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: "Accessibility Access Required")
         menu.addItem(accessItem)
         self.accessibilityMenuItem = accessItem
 
         let viewLogs = NSMenuItem(title: "View Logs…", action: #selector(openLogsViewer), keyEquivalent: "")
         viewLogs.target = self
+        viewLogs.image = NSImage(systemSymbolName: "doc.text", accessibilityDescription: "View Logs")
         menu.addItem(viewLogs)
 
         let openFolder = NSMenuItem(title: "Open Logs Folder", action: #selector(openLogsFolder), keyEquivalent: "")
         openFolder.target = self
+        openFolder.image = NSImage(systemSymbolName: "folder", accessibilityDescription: "Open Logs Folder")
         menu.addItem(openFolder)
 
         menu.addItem(.separator())
 
         let about = NSMenuItem(title: "About", action: #selector(openAboutPanel), keyEquivalent: "")
         about.target = self
+        about.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "About")
         menu.addItem(about)
 
         let checkUpdates = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         checkUpdates.target = self
+        checkUpdates.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Check for Updates")
         menu.addItem(checkUpdates)
 
         let settings = NSMenuItem(title: "Settings…", action: #selector(openPreferences), keyEquivalent: "")
         settings.target = self
+        settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
         menu.addItem(settings)
 
         let donate = NSMenuItem(title: "Donate", action: #selector(openDonate), keyEquivalent: "")
         donate.target = self
+        donate.image = NSImage(systemSymbolName: "heart", accessibilityDescription: "Donate")
         menu.addItem(donate)
 
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quit Ticklet", action: #selector(self.quit), keyEquivalent: "q")
         quit.target = self
+        quit.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
         menu.addItem(quit)
 
         return menu
