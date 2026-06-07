@@ -13,7 +13,7 @@ private final class PreferencesWindowController: NSWindowController, NSToolbarDe
     private let model: PreferencesWindowModel
     private let hostingController: NSHostingController<PreferencesContainerView>
 
-    override init(window: NSWindow?) {
+    init() {
         let model = PreferencesWindowModel()
         self.model = model
         self.hostingController = NSHostingController(rootView: PreferencesContainerView(model: model))
@@ -33,8 +33,8 @@ private final class PreferencesWindowController: NSWindowController, NSToolbarDe
         window.isReleasedWhenClosed = false
         window.toolbar = toolbar
         window.toolbarStyle = .preference
-        window.delegate = self
         window.center()
+        window.delegate = self
 
         resizeWindow(for: model.selectedPane, animate: false)
     }
@@ -414,7 +414,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         vc.refresh()
     }
 
-    @objc private func openPreferences() {
+    @objc func openPreferences() {
         preferencesWindowController.show()
     }
 
