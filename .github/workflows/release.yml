@@ -95,18 +95,16 @@ jobs:
         if: steps.signing.outputs.has_signing == 'true'
         env:
           REQUESTED_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          KEYCHAIN_PATH: ${{ steps.import_certs.outputs.keychain-path }}
         run: |
           set -euo pipefail
           requested="${REQUESTED_IDENTITY:-}"
           selected=""
 
-          echo "Inspecting available code-signing identities in imported keychain..."
-          /usr/bin/security find-identity -v -p codesigning "${KEYCHAIN_PATH}" || true
+          echo "Inspecting available code-signing identities in the current keychain search list..."
+          /usr/bin/security find-identity -v -p codesigning || true
 
-          # Search the specific keychain the import action created rather than the default search list,
-          # which doesn't reliably include the temporary keychain across steps.
-          available=$(/usr/bin/security find-identity -v -p codesigning "${KEYCHAIN_PATH}" | /usr/bin/awk -F'"' '/Developer ID Application: / { print $2 }')
+          # The import action updates the user keychain search list, so query identities from there.
+          available=$(/usr/bin/security find-identity -v -p codesigning | /usr/bin/awk -F'"' '/Developer ID Application: / { print $2 }')
 
           if [ -z "$available" ]; then
             echo "No 'Developer ID Application' identities were found after importing APPLE_CERTIFICATE_P12_BASE64."
@@ -142,14 +140,11 @@ jobs:
 
       - name: Configure notarytool keychain profile
         if: github.ref_type == 'tag' && steps.signing.outputs.has_signing == 'true' && steps.signing.outputs.has_notarization == 'true'
-        env:
-          KEYCHAIN_PATH: ${{ steps.import_certs.outputs.keychain-path }}
         run: |
           xcrun notarytool store-credentials ticklet-notary \
             --apple-id "${{ secrets.APPLE_ID }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-            --password "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" \
-            --keychain "${KEYCHAIN_PATH}"
+            --password "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
 
       - name: Cache Swift build artifacts
         uses: actions/cache@v4.2.3
