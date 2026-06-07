@@ -123,6 +123,37 @@ spctl --assess --type execute --verbose ./artifacts/Ticklet.app
 - For CI, ensure the signing key is available on the runner and submit notarization jobs as part of your release workflow.
 - A practical release flow is: build -> `make_app_bundle.sh` with `SIGN_IDENTITY` and `NOTARIZE=1` -> upload the produced `.zip`.
 
+### GitHub Actions signing setup (release workflow)
+
+The release workflow at `/.github/workflows/release.yml` supports automatic Developer ID signing during per-arch builds.
+
+Required repository secrets for signed tag releases:
+
+- `APPLE_CERTIFICATE_P12_BASE64`: base64-encoded Developer ID Application certificate (`.p12`)
+- `APPLE_CERTIFICATE_PASSWORD`: password used when exporting the `.p12`
+- `APPLE_SIGNING_IDENTITY`: exact codesign identity string, for example `Developer ID Application: Your Name (TEAMID)`
+
+Optional repository secrets for notarization:
+
+- `APPLE_ID`: Apple ID email for notarization
+- `APPLE_APP_SPECIFIC_PASSWORD`: app-specific password for that Apple ID
+- `APPLE_TEAM_ID`: Apple Developer Team ID
+
+Behavior:
+
+- Tag-triggered releases (`v*`) fail early if required signing secrets are missing.
+- If signing secrets are present, `.app` bundles are signed with hardened runtime (`--options runtime --timestamp`).
+- If notarization secrets are also present, the build submits zips with `notarytool`, waits for completion, and staples the ticket.
+- Manual workflow runs can still be used without signing secrets (useful for test/draft builds).
+
+Generate a base64 certificate secret from a local `.p12`:
+
+```bash
+base64 -i ./DeveloperIDApplication.p12 | pbcopy
+```
+
+Paste the copied value into `APPLE_CERTIFICATE_P12_BASE64` in GitHub repository secrets.
+
 - If Finder reports "some items had to be skipped" when moving the app, try these diagnostic and remediation steps in Terminal:
 
   ```bash

@@ -29,6 +29,74 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
+      - name: Validate signing secrets for tagged releases
+        if: github.ref_type == 'tag'
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required secret for signed tag releases: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Tag-triggered releases must be Developer ID signed. Add the missing GitHub secrets and re-run."
+            exit 1
+          fi
+
+      - name: Determine signing/notarization configuration
+        id: signing
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          has_signing=false
+          has_notarization=false
+
+          if [ -n "${APPLE_CERTIFICATE_P12_BASE64}" ] && [ -n "${APPLE_CERTIFICATE_PASSWORD}" ] && [ -n "${APPLE_SIGNING_IDENTITY}" ]; then
+            has_signing=true
+          fi
+
+          if [ -n "${APPLE_ID}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD}" ] && [ -n "${APPLE_TEAM_ID}" ]; then
+            has_notarization=true
+          fi
+
+          echo "has_signing=${has_signing}" >> "$GITHUB_OUTPUT"
+          echo "has_notarization=${has_notarization}" >> "$GITHUB_OUTPUT"
+          echo "sign_identity=${APPLE_SIGNING_IDENTITY}" >> "$GITHUB_OUTPUT"
+
+          if [ "${has_signing}" != "true" ]; then
+            echo "Developer ID signing is disabled for this run (missing one or more signing secrets)."
+          fi
+          if [ "${has_notarization}" != "true" ]; then
+            echo "Notarization is disabled for this run (missing one or more notarization secrets)."
+          fi
+
+      - name: Import Developer ID certificate
+        if: steps.signing.outputs.has_signing == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Configure notarytool keychain profile
+        if: steps.signing.outputs.has_notarization == 'true'
+        run: |
+          xcrun notarytool store-credentials ticklet-notary \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --password "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
+
       - name: Cache Swift build artifacts
         uses: actions/cache@v4.2.3
         with:
@@ -118,6 +186,11 @@ jobs:
         env:
           APP_BUILD: ${{ github.run_number }}
           APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          SIGN_IDENTITY: ${{ steps.signing.outputs.sign_identity }}
+          SIGN_OPTIONS: ${{ steps.signing.outputs.has_signing == 'true' && '--options runtime --timestamp' || '' }}
+          NOTARIZE: ${{ steps.signing.outputs.has_signing == 'true' && steps.signing.outputs.has_notarization == 'true' && '1' || '0' }}
+          NOTARY_KEYCHAIN_PROFILE: ${{ steps.signing.outputs.has_notarization == 'true' && 'ticklet-notary' || '' }}
+          VERIFY_SIGNED_APP: "1"
         run: |
           set -e
           # locate built executable (path varies by build-path)
