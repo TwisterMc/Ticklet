@@ -29,22 +29,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-      - name: Validate signing secrets for tagged releases
+      - name: Validate signing and notarization secrets for tagged releases
         if: github.ref_type == 'tag'
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           missing=0
-          for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD; do
+          for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
             if [ -z "${!name}" ]; then
-              echo "Missing required secret for signed tag releases: $name"
+              echo "Missing required secret for signed+notarized tag releases: $name"
               missing=1
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo "Tag-triggered releases must be Developer ID signed. Add the missing GitHub secrets and re-run."
+            echo "Tag-triggered releases must be Developer ID signed and notarized. Add the missing GitHub secrets and re-run."
             exit 1
           fi
 
@@ -80,6 +83,7 @@ jobs:
           fi
 
       - name: Import Developer ID certificate
+        id: import_certs
         if: steps.signing.outputs.has_signing == 'true'
         uses: apple-actions/import-codesign-certs@v3
         with:
@@ -91,17 +95,18 @@ jobs:
         if: steps.signing.outputs.has_signing == 'true'
         env:
           REQUESTED_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          KEYCHAIN_PATH: ${{ steps.import_certs.outputs.keychain-path }}
         run: |
           set -euo pipefail
           requested="${REQUESTED_IDENTITY:-}"
           selected=""
 
-          echo "Inspecting available code-signing identities on runner..."
-          /usr/bin/security find-identity -v -p codesigning || true
+          echo "Inspecting available code-signing identities in imported keychain..."
+          /usr/bin/security find-identity -v -p codesigning "${KEYCHAIN_PATH}" || true
 
-          # Read available identities from the imported keychain certs.
-          # This remains local to the runner and avoids relying on exact secret formatting.
-          available=$(/usr/bin/security find-identity -v -p codesigning | /usr/bin/awk -F'"' '/Developer ID Application: / { print $2 }')
+          # Search the specific keychain the import action created rather than the default search list,
+          # which doesn't reliably include the temporary keychain across steps.
+          available=$(/usr/bin/security find-identity -v -p codesigning "${KEYCHAIN_PATH}" | /usr/bin/awk -F'"' '/Developer ID Application: / { print $2 }')
 
           if [ -z "$available" ]; then
             echo "No 'Developer ID Application' identities were found after importing APPLE_CERTIFICATE_P12_BASE64."
@@ -136,12 +141,15 @@ jobs:
           echo "sign_identity=$selected" >> "$GITHUB_OUTPUT"
 
       - name: Configure notarytool keychain profile
-        if: steps.signing.outputs.has_notarization == 'true'
+        if: github.ref_type == 'tag' && steps.signing.outputs.has_signing == 'true' && steps.signing.outputs.has_notarization == 'true'
+        env:
+          KEYCHAIN_PATH: ${{ steps.import_certs.outputs.keychain-path }}
         run: |
           xcrun notarytool store-credentials ticklet-notary \
             --apple-id "${{ secrets.APPLE_ID }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-            --password "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
+            --password "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" \
+            --keychain "${KEYCHAIN_PATH}"
 
       - name: Cache Swift build artifacts
         uses: actions/cache@v4.2.3
@@ -234,8 +242,8 @@ jobs:
           APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           SIGN_IDENTITY: ${{ steps.resolved_identity.outputs.sign_identity }}
           SIGN_OPTIONS: ${{ steps.signing.outputs.has_signing == 'true' && '--options runtime --timestamp' || '' }}
-          NOTARIZE: ${{ steps.signing.outputs.has_signing == 'true' && steps.signing.outputs.has_notarization == 'true' && '1' || '0' }}
-          NOTARY_KEYCHAIN_PROFILE: ${{ steps.signing.outputs.has_notarization == 'true' && 'ticklet-notary' || '' }}
+          NOTARIZE: ${{ github.ref_type == 'tag' && steps.signing.outputs.has_signing == 'true' && steps.signing.outputs.has_notarization == 'true' && '1' || '0' }}
+          NOTARY_KEYCHAIN_PROFILE: ${{ github.ref_type == 'tag' && steps.signing.outputs.has_notarization == 'true' && 'ticklet-notary' || '' }}
           VERIFY_SIGNED_APP: "1"
         run: |
           set -e
@@ -273,12 +281,15 @@ jobs:
       - name: Zip .app
         if: steps.check.outputs.skipping == 'false'
         run: |
-          TMP_DIR=./artifacts/${{ matrix.arch }}
           mkdir -p artifacts
-          # Zip the normalized Ticklet.app (inside the per-arch directory) into an arch-specific zip
-          ditto -c -k --sequesterRsrc --keepParent "$TMP_DIR/Ticklet.app" ./artifacts/Ticklet-${{ matrix.arch }}.zip
-          # Cleanup per-arch temp dir
-          rm -rf "$TMP_DIR"
+          # Prefer the canonical artifact (has the notarization staple ticket); fall back to per-arch copy.
+          if [ -d "./artifacts/Ticklet.app" ]; then
+            SRC="./artifacts/Ticklet.app"
+          else
+            SRC="./artifacts/${{ matrix.arch }}/Ticklet.app"
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$SRC" ./artifacts/Ticklet-${{ matrix.arch }}.zip
+          rm -rf "./artifacts/${{ matrix.arch }}" "./artifacts/Ticklet.app"
 
       - name: Upload artifacts
         if: steps.check.outputs.skipping == 'false'
