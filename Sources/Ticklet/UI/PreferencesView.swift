@@ -171,6 +171,7 @@ private struct PrivacyPrefsView: View {
 
 private struct GeneralPrefsView: View {
     @AppStorage("automaticallyCheckForUpdates") private var automaticallyCheckForUpdates = true
+    @AppStorage("checkForUpdatesDaily") private var checkForUpdatesDaily = true
     @AppStorage("confirmBeforeQuit") private var confirmBeforeQuit = true
     @State private var showingDeleteHistoryAlert = false
 
@@ -178,6 +179,7 @@ private struct GeneralPrefsView: View {
         Form {
             Section {
                 Toggle("Automatically check for updates on launch", isOn: $automaticallyCheckForUpdates)
+                Toggle("Check for updates daily", isOn: $checkForUpdatesDaily)
                 Toggle("Confirm before quitting", isOn: $confirmBeforeQuit)
             }
             Section {
@@ -190,6 +192,9 @@ private struct GeneralPrefsView: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: checkForUpdatesDaily) {
+            (NSApp.delegate as? AppDelegate)?.setCheckForUpdatesDaily(checkForUpdatesDaily)
+        }
         .alert("Delete all recorded history?", isPresented: $showingDeleteHistoryAlert) {
             Button("Delete", role: .destructive) {
                 (NSApp.delegate as? AppDelegate)?.deleteHistory()

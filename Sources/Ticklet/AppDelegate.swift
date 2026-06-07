@@ -128,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var tracker: ActivityTracker?
     private var manager: ActivityManager?
     private var accessibilityPollTimer: Timer?
+    private var dailyUpdateCheckTimer: Timer?
     private lazy var preferencesWindowController = PreferencesWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -213,6 +214,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if UserDefaults.standard.object(forKey: "automaticallyCheckForUpdates") as? Bool ?? true {
                 UpdateChecker.shared.checkForUpdates(silentIfCurrent: true)
             }
+            if UserDefaults.standard.object(forKey: "checkForUpdatesDaily") as? Bool ?? true {
+                scheduleDailyUpdateCheck()
+            }
 
         } catch {
             print("Failed to initialize logger: \(error)")
@@ -241,6 +245,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         accessibilityPollTimer?.invalidate()
         accessibilityPollTimer = nil
+        dailyUpdateCheckTimer?.invalidate()
+        dailyUpdateCheckTimer = nil
         manager?.stop()
     }
 
@@ -436,6 +442,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func checkForUpdates() {
         UpdateChecker.shared.checkForUpdates()
+    }
+
+    func setCheckForUpdatesDaily(_ enabled: Bool) {
+        if enabled {
+            scheduleDailyUpdateCheck()
+        } else {
+            dailyUpdateCheckTimer?.invalidate()
+            dailyUpdateCheckTimer = nil
+        }
+    }
+
+    private func scheduleDailyUpdateCheck() {
+        dailyUpdateCheckTimer?.invalidate()
+        dailyUpdateCheckTimer = Timer.scheduledTimer(withTimeInterval: 86400, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                _ = self
+                UpdateChecker.shared.checkForUpdates(silentIfCurrent: true)
+            }
+        }
     }
 
     @objc private func openAboutPanel() {
