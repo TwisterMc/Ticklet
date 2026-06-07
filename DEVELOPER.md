@@ -6,7 +6,6 @@ This document contains developer-oriented instructions for building, testing, pa
 
 - Requires: Swift 6.0+, macOS 15.0+.
 - Clone the repo and build:
-
   - Build (debug):
     ```bash
     swift build
@@ -72,7 +71,6 @@ Tests cover CSV logging behavior (reads, writes, append semantics) and core mana
 ## Signing & Notarization (for developers)
 
 - For public releases, sign the app with a **Developer ID Application** certificate and notarize it so Gatekeeper and system prompts are consistent for users. The packaging helper supports a few signing modes:
-
   - Default (ad‑hoc, for local testing): if you do **not** set `SIGN_IDENTITY`, the script will perform an ad‑hoc sign (equivalent to `SIGN_IDENTITY="-"`) so the produced `.app` is signed for local testing.
 
   - Explicit Developer ID (recommended for distribution): set `SIGN_IDENTITY` to your Developer ID identity (example below).
