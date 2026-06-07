@@ -19,6 +19,10 @@ final class UpdateChecker {
     private init() {}
 
     func checkForUpdates(silentIfCurrent: Bool = false) {
+        if !silentIfCurrent {
+            NSApp.activate()
+        }
+
         var request = URLRequest(url: releasesURL)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
@@ -64,6 +68,12 @@ final class UpdateChecker {
         return alert
     }
 
+    @discardableResult
+    private func runAlert(_ alert: NSAlert) -> NSApplication.ModalResponse {
+        NSApp.activate()
+        return alert.runModal()
+    }
+
     private func presentResult(latestVersion: String, silentIfCurrent: Bool) {
         let current = appVersion
 
@@ -74,7 +84,7 @@ final class UpdateChecker {
             alert.addButton(withTitle: "View Release")
             alert.addButton(withTitle: "Not Now")
             alert.alertStyle = .informational
-            if alert.runModal() == .alertFirstButtonReturn {
+            if runAlert(alert) == .alertFirstButtonReturn {
                 NSWorkspace.shared.open(releasesPageURL)
             }
         } else if !silentIfCurrent {
@@ -83,7 +93,7 @@ final class UpdateChecker {
             alert.informativeText = "You're running the latest version (\(current))."
             alert.addButton(withTitle: "OK")
             alert.alertStyle = .informational
-            alert.runModal()
+            runAlert(alert)
         }
     }
 
@@ -93,7 +103,7 @@ final class UpdateChecker {
         alert.informativeText = "There are no published releases for \(appName) yet."
         alert.addButton(withTitle: "OK")
         alert.alertStyle = .informational
-        alert.runModal()
+        runAlert(alert)
     }
 
     private func showError(detail: String = "") {
@@ -103,7 +113,7 @@ final class UpdateChecker {
             + (detail.isEmpty ? "" : "\n\n(\(detail))")
         alert.addButton(withTitle: "OK")
         alert.alertStyle = .warning
-        alert.runModal()
+        runAlert(alert)
     }
 
     private func isNewerVersion(_ candidate: String, than current: String) -> Bool {
