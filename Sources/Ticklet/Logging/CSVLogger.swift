@@ -62,12 +62,12 @@ final class CSVLogger: LogWriter {
         try csv.write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
-    // Append entries to existing CSV file safely. Creates the file with header if missing.
+    // Append entries to existing CSV file. Creates the file with header if missing.
     func append(entries: [ActivityEntry], for date: Date) throws {
         let filename = "ticklet-\(fileDateFormatter.string(from: date)).csv"
         let fileURL = directory.appendingPathComponent(filename)
 
-        var toWrite = ""
+        var newRows = ""
         for e in entries.sorted(by: { $0.startTime < $1.startTime }) {
             guard let end = e.endTime else { continue }
             let duration = Int(end.timeIntervalSince(e.startTime))
@@ -75,26 +75,21 @@ final class CSVLogger: LogWriter {
             let endStr = lineDateFormatter.string(from: end)
             let app = escape(e.appName)
             let win = redactWindowTitles ? "" : escape(e.windowTitle)
-            toWrite += "\(start),\(endStr),\(duration),\(app),\(win)\n"
+            newRows += "\(start),\(endStr),\(duration),\(app),\(win)\n"
         }
 
-        // Ensure directory exists
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        if !fileManager.fileExists(atPath: fileURL.path) {
-            // write header + entries
-            let csv = "start_time,end_time,duration_seconds,app_name,window_title\n" + toWrite
+        let existing: String
+        do {
+            existing = try String(contentsOf: fileURL, encoding: .utf8)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            let csv = "start_time,end_time,duration_seconds,app_name,window_title\n" + newRows
             try csv.write(to: fileURL, atomically: true, encoding: .utf8)
             return
         }
 
-        // Append to existing file using FileHandle
-        let handle = try FileHandle(forWritingTo: fileURL)
-        defer { try? handle.close() }
-        try handle.seekToEnd()
-        if let data = toWrite.data(using: .utf8) {
-            try handle.write(contentsOf: data)
-        }
+        try (existing + newRows).write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
     func readEntries(for date: Date) throws -> [ActivityEntry] {
@@ -111,7 +106,7 @@ final class CSVLogger: LogWriter {
             throw error
         }
         var entries: [ActivityEntry] = []
-        let records = parseCSVRecords(data)
+        let records = Self.parseCSVRecords(data)
         
         // Validate header
         guard records.count > 1 else { return [] }
@@ -161,13 +156,41 @@ final class CSVLogger: LogWriter {
         }
     }
 
+    func fileURL(for date: Date) -> URL {
+        let filename = "ticklet-\(fileDateFormatter.string(from: date)).csv"
+        return directory.appendingPathComponent(filename)
+    }
+
+    // Safe to call from any thread — uses its own DateFormatter instances.
+    static func parseEntries(from url: URL) -> [ActivityEntry] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+
+        guard let data = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        let records = parseCSVRecords(data)
+        guard records.count > 1 else { return [] }
+
+        let expectedHeader = ["start_time", "end_time", "duration_seconds", "app_name", "window_title"]
+        guard records[0] == expectedHeader else { return [] }
+
+        var entries: [ActivityEntry] = []
+        for fields in records.dropFirst() {
+            guard fields.count >= 5,
+                  !fields.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
+                  let start = formatter.date(from: fields[0]),
+                  let end = formatter.date(from: fields[1]) else { continue }
+            entries.append(ActivityEntry(appName: fields[3], windowTitle: fields[4], startTime: start, endTime: end))
+        }
+        return entries
+    }
+
     func deleteAllLogs() throws {
         for fileURL in try csvFiles(in: directory) {
             try fileManager.trashItem(at: fileURL, resultingItemURL: nil)
         }
     }
 
-    private func parseCSVRecords(_ csv: String) -> [[String]] {
+    private static func parseCSVRecords(_ csv: String) -> [[String]] {
         var records: [[String]] = []
         var fields: [String] = []
         var currentField = ""

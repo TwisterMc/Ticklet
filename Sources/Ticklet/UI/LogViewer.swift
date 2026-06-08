@@ -48,6 +48,7 @@ private final class HourSeparatorRowView: NSTableRowView {
     }
 }
 
+@MainActor
 final class LogViewerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     private let tableView = NSTableView()
     private let scroll = NSScrollView()
@@ -80,14 +81,11 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
             name: UserDefaults.didChangeNotification,
             object: nil
         )
-        // initialize history with today
+        // restore sort before loading so load() captures the correct sort state
+        restoreSortDescriptor()
         let today = Calendar.current.startOfDay(for: Date())
         datePicker.dateValue = today
         load(date: today)
-        // restore any previously saved sort descriptor
-        restoreSortDescriptor()
-        // Warm up app icon cache for visible entries
-        warmupIconCache()
     }
 
     required init?(coder: NSCoder) {
@@ -270,23 +268,17 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     public func load(date: Date) {
-        // normalize to start of day for consistent file lookup
-        let keyDate = Calendar.current.startOfDay(for: date)
-        do {
-            entries = try logger.readEntries(for: keyDate)
-            // Apply any current sort descriptor and reload
-            sortEntries()
-            DispatchQueue.main.async {
-                if self.tableView.numberOfRows > 0 {
-                    self.tableView.scrollRowToVisible(0)
-                }
-                self.updateNavigationButtons()
-            }
-        } catch {
-            NSLog("[Ticklet] LogViewer.load error: \(error)")
-            entries = []
-            sortEntries()
-            DispatchQueue.main.async { self.updateNavigationButtons() }
+        let fileURL = logger.fileURL(for: Calendar.current.startOfDay(for: date))
+        let sortKey = tableView.sortDescriptors.first?.key
+        let ascending = tableView.sortDescriptors.first?.ascending ?? true
+        Task {
+            let loaded = await Task.detached(priority: .userInitiated) {
+                CSVLogger.parseEntries(from: fileURL)
+            }.value
+            entries = Self.sorted(loaded, sortKey: sortKey, ascending: ascending)
+            tableView.reloadData()
+            if tableView.numberOfRows > 0 { tableView.scrollRowToVisible(0) }
+            updateNavigationButtons()
         }
     }
 
@@ -383,6 +375,44 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
 
     // MARK: - App icon helpers
 
+    private func appIcon(for appName: String) -> NSImage {
+        if let cached = appIconCache[appName] { return cached }
+        if let running = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == appName }),
+           let icon = running.icon {
+            appIconCache[appName] = icon
+            return icon
+        }
+        let generic = genericAppIcon()
+        appIconCache[appName] = generic  // placeholder prevents duplicate load tasks
+        scheduleIconLoad(for: appName)
+        return generic
+    }
+
+    private func scheduleIconLoad(for appName: String) {
+        let searchDirs: [String] = [
+            "/Applications",
+            "/System/Applications",
+            "/System/Applications/Utilities",
+            "/Applications/Utilities",
+            (NSHomeDirectory() as NSString).appendingPathComponent("Applications"),
+        ]
+        Task {
+            let appPath = await Task.detached(priority: .utility) {
+                searchDirs.lazy
+                    .map { ($0 as NSString).appendingPathComponent("\(appName).app") }
+                    .first { FileManager.default.fileExists(atPath: $0) }
+            }.value
+            guard let appPath else { return }
+            let icon = NSWorkspace.shared.icon(forFile: appPath)
+            appIconCache[appName] = icon
+            tableView.reloadData()
+        }
+    }
+
+    private func genericAppIcon() -> NSImage {
+        return NSWorkspace.shared.icon(for: UTType.application)
+    }
+
     private func shouldShowHourSeparator(forRow row: Int) -> Bool {
         guard row > 0, isSortedByStartTime else { return false }
 
@@ -414,40 +444,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         return parts.joined(separator: " ")
     }
 
-    private func appIcon(for appName: String) -> NSImage {
-        if let cached = appIconCache[appName] { return cached }
-        if let running = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == appName }), let icon = running.icon {
-            appIconCache[appName] = icon
-            return icon
-        }
-        // Search known application directories for the app bundle
-        let searchDirs = [
-            "/Applications",
-            "/System/Applications",
-            "/System/Applications/Utilities",
-            "/Applications/Utilities",
-            (NSHomeDirectory() as NSString).appendingPathComponent("Applications"),
-        ]
-        for dir in searchDirs {
-            let appPath = (dir as NSString).appendingPathComponent("\(appName).app")
-            if FileManager.default.fileExists(atPath: appPath) {
-                let icon = NSWorkspace.shared.icon(forFile: appPath)
-                appIconCache[appName] = icon
-                return icon
-            }
-        }
-        // Generic app icon fallback
-        if #available(macOS 12.0, *) {
-            let generic = NSWorkspace.shared.icon(for: UTType.application)
-            appIconCache[appName] = generic
-            return generic
-        } else {
-            let generic = NSWorkspace.shared.icon(forFileType: "app")
-            appIconCache[appName] = generic
-            return generic
-        }
-    }
-
     // MARK: - Sorting
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         sortEntries()
@@ -455,13 +451,13 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
     }
 
     private func sortEntries() {
-        let sds = tableView.sortDescriptors
-        guard let sd = sds.first, let key = sd.key else {
-            tableView.reloadData()
-            return
-        }
-        let ascending = sd.ascending
-        entries.sort { a, b in
+        entries = Self.sorted(entries, sortKey: tableView.sortDescriptors.first?.key, ascending: tableView.sortDescriptors.first?.ascending ?? true)
+        tableView.reloadData()
+    }
+
+    private static func sorted(_ entries: [ActivityEntry], sortKey: String?, ascending: Bool) -> [ActivityEntry] {
+        guard let key = sortKey else { return entries }
+        return entries.sorted { a, b in
             switch key {
             case "startTime":
                 return ascending ? a.startTime < b.startTime : a.startTime > b.startTime
@@ -479,7 +475,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
                 return true
             }
         }
-        tableView.reloadData()
     }
 
     private let sortDefaultsKey = "LogViewerSortDescriptor"
@@ -508,14 +503,6 @@ final class LogViewerWindowController: NSWindowController, NSTableViewDataSource
         forwardButton.isEnabled = selected < today
         todayButton.isEnabled = !Calendar.current.isDate(selected, inSameDayAs: today)
 
-    }
-
-    private func warmupIconCache() {
-        // Pre-load icons for all visible app names to avoid UI lag
-        let appNames = Set(entries.map { $0.appName })
-        for appName in appNames {
-            _ = appIcon(for: appName)
-        }
     }
 
     @objc private func goBack() {

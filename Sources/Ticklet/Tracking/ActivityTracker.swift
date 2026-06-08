@@ -191,10 +191,11 @@ final class ActivityTracker {
 
         func parent(of element: AXUIElement) -> AXUIElement? {
             var parentRef: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentRef) == .success else {
+            guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentRef) == .success,
+                  let ref = parentRef, CFGetTypeID(ref) == AXUIElementGetTypeID() else {
                 return nil
             }
-            return parentRef as! AXUIElement?
+            return (ref as! AXUIElement)
         }
 
         func role(of element: AXUIElement) -> String? {
@@ -217,7 +218,8 @@ final class ActivityTracker {
 
             var titleUIRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(element, kAXTitleUIElementAttribute as CFString, &titleUIRef) == .success,
-               let titleUIElement = titleUIRef as! AXUIElement? {
+               let ref = titleUIRef, CFGetTypeID(ref) == AXUIElementGetTypeID() {
+                let titleUIElement = ref as! AXUIElement
                 if let title = titleFromElement(titleUIElement) {
                     return title
                 }
@@ -262,16 +264,16 @@ final class ActivityTracker {
 
         // Try focused window first (catches active tabs, focused documents)
         var focusedWindow: CFTypeRef?
-        if AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success, focusedWindow != nil {
-            let window = focusedWindow as! AXUIElement
-            if let t = titleFromElement(window) { return (appName, t) }
+        if AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success,
+           let ref = focusedWindow, CFGetTypeID(ref) == AXUIElementGetTypeID() {
+            if let t = titleFromElement(ref as! AXUIElement) { return (appName, t) }
         }
 
         // Fallback to main window
         var mainWindow: CFTypeRef?
-        if AXUIElementCopyAttributeValue(appElement, kAXMainWindowAttribute as CFString, &mainWindow) == .success, mainWindow != nil {
-            let mwin = mainWindow as! AXUIElement
-            if let t = titleFromElement(mwin) { return (appName, t) }
+        if AXUIElementCopyAttributeValue(appElement, kAXMainWindowAttribute as CFString, &mainWindow) == .success,
+           let ref = mainWindow, CFGetTypeID(ref) == AXUIElementGetTypeID() {
+            if let t = titleFromElement(ref as! AXUIElement) { return (appName, t) }
         }
         
         // For apps with multiple windows but no focused/main window, try the windows list
