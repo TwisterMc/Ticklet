@@ -22,6 +22,8 @@ It's great for anyone who has to fill in a timesheet and bounces around between 
 ## Install
 
 - Download the latest release from the <a href="https://github.com/TwisterMc/Ticklet/releases">releases page</a>. Releases include both **Intel (x86_64)** and **Apple Silicon (arm64)** builds.
+- Drag the application to your Applications folder.
+- Open Ticklet and grant accessibility permissions.
 
 ## Granting Accessibility permission
 
