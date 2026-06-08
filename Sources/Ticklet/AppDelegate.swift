@@ -370,6 +370,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func promptForAccessibilityIfNeeded() {
         guard !AXIsProcessTrusted() else { return }
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Accessibility Access Required"
         alert.informativeText = "Ticklet needs Accessibility access to track which apps and windows you use.\n\nClick \"Grant Access\" to open System Settings, then enable Ticklet in the Accessibility list. Tracking will start automatically — no restart required.\n\nNote: After each app update you may need to re-enable access."
@@ -386,6 +387,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openAccessibilityPreferences() {
+        NSApp.activate(ignoringOtherApps: true)
         requestAccessibilityAccess()
         startAccessibilityPolling()
     }
